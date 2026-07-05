@@ -1,0 +1,43 @@
+KATMANLI ANIMASYON MOTORU - KURULUM
+==========================================
+
+BU BIR ARAYUZSUZ MOTORDUR. Pencere/buton yok — klasorlere dosya
+atip "script.txt" duzenleyerek calistiriyorsun.
+
+1) Bu ZIP'i istediğin bir klasöre çıkart.
+
+2) "baslat.bat" dosyasına ÇİFT TIKLA (ilk çalıştırma).
+   - Kütüphaneleri otomatik kurar (moviepy, Pillow).
+   - Klasörleri oluşturur: input_backgrounds, input_characters,
+     input_audio, output_shorts
+   - "script.txt" diye bir dosya OTOMATİK oluşturur (örnek içerikle).
+
+3) Şimdi kendi malzemelerini ekle:
+   - "input_backgrounds" klasörüne sahne arka plan resimlerini at
+     (örn: okul.jpg, savas.jpg)
+   - "input_characters" klasörüne karakterlerin TRANSPARAN (arka
+     planı şeffaf) PNG resimlerini at (örn: rias.png, issei.png)
+     ÖNEMLİ: Bu resimlerin arka planı şeffaf olmalı, yoksa karakter
+     kare bir kutu gibi görünür. (Photopea.com gibi ücretsiz bir
+     siteyle arka planı kolayca kaldırabilirsin.)
+   - "input_audio" klasörüne arka plan müziği at (mp3/wav)
+
+4) "script.txt" dosyasını NOTEPAD ile aç, kendi sahnelerini yaz.
+   Format:
+   SÜRE | ARKAPLAN_DOSYASI | KARAKTER:POZİSYON:EFEKT , ... | "YAZI"
+
+   POZİSYON seçenekleri: sol, merkez, sag
+   EFEKT seçenekleri: sabit, zipla, titre
+
+   Örnek satır:
+   3.0 | okul.jpg | rias:sol:sabit , issei:sag:zipla | "Merhaba!"
+
+5) "baslat.bat" dosyasına TEKRAR çift tıkla. Video "output_shorts"
+   klasöründe oluşacak.
+
+NOTLAR:
+- Bir arka plan veya karakter dosyası bulunamazsa program çökmez,
+  uyarı verip (siyah zemin / karaktersiz) devam eder.
+- Render (özellikle uzun sahnelerde) biraz sürebilir, sabırlı ol.
+- VS Code kullanacaksan: File > Open Folder ile bu klasörü aç,
+  terminalden "python app.py" da çalıştırabilirsin.

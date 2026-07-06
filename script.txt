@@ -1,2 +1,2 @@
-3.0 | okul.jpg | rias:sol:sabit , issei:sag:zipla | "Rias-senpai! Sonunda buldum seni!"
-4.5 | savas.jpg | rias:merkez:titre | "Bu güç... İmkansız!"
+sahne: https://raw.githubusercontent.com/atmaca-571/ShortsApp/main/output_shorts/.gitkeep, sure: 4
+https://raw.githubusercontent.com/atmaca-571/ShortsApp/main/output_shorts/.gitkeep: pozisyon=sol, animasyon=zıplama

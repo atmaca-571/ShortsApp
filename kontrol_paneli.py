@@ -1,16 +1,19 @@
 """
 kontrol_paneli.py
 ------------------
-Canavar Asistan - Masaustu Ana Kontrol Paneli
+Canavar Asistan - Ana Kontrol Paneli (SADE / KARARLI SURUM)
 
 Bu dosyayi, LayerEngine projenin (app.py, script.txt'nin bulundugu) AYNI
 klasorune koy ve calistir:
     python kontrol_paneli.py
 
-Ne yapar:
-- script.txt'yi Not Defteri ile acar
-- 'python app.py' isini arka planda (terminal penceresi acmadan) calistirir
-- After Effects'i, canavar_asistan.jsx'i otomatik yukleyerek baslatir
+Bu surumde:
+- Tasarim tamamen sade, standart Tkinter (renk suslemesi yok).
+- script.txt panelin icinden okunup duzenlenip kaydedilebiliyor (Not Defteri
+  ACILMIYOR).
+- Tum emoji/ozel karakterler loglardan temizlendi (Windows konsolunda
+  UnicodeEncodeError vermesin diye).
+- Pencere buyutulebilir, ic bilesenler pencereyle birlikte esniyor.
 """
 
 import os
@@ -21,6 +24,14 @@ import subprocess
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
 
+# Windows'ta bu script konsolsuz (pyw) calistirilsa bile, olasi print()
+# cagrilarinda UnicodeEncodeError almamak icin stdout/stderr'i UTF-8'e zorla.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 # ============================================================================
 # YOLLAR VE AYARLAR
 # ============================================================================
@@ -30,12 +41,8 @@ APP_PY_YOLU = os.path.join(BASE_DIR, "app.py")
 OUTPUT_KLASORU = os.path.join(BASE_DIR, "output_shorts")
 AYARLAR_DOSYASI = os.path.join(BASE_DIR, "kontrol_paneli_ayarlar.json")
 
-RENK_ZEMIN = "#1a1a2e"
-RENK_KUTU = "#25253d"
-RENK_VURGU = "#7b2ff7"
 RENK_YESIL = "#2ecc71"
 RENK_KIRMIZI = "#e74c3c"
-RENK_SOLUK = "#9a9ab0"
 
 
 def ayarlari_yukle():
@@ -59,95 +66,104 @@ def ayarlari_kaydet(ayarlar):
 class KontrolPaneli:
     def __init__(self, pencere):
         self.pencere = pencere
-        self.pencere.title("🎬 Canavar Asistan - Ana Kontrol Paneli")
-        self.pencere.geometry("560x620")
-        self.pencere.minsize(480, 480)
-        self.pencere.configure(bg=RENK_ZEMIN)
+        self.pencere.title("Canavar Asistan - Kontrol Paneli")
+        self.pencere.geometry("700x700")
+        self.pencere.minsize(500, 500)
         self.pencere.resizable(True, True)
 
         self.ayarlar = ayarlari_yukle()
         self._islem_calisiyor = False
 
         self._arayuzu_kur()
-        self.pencere.bind("<Configure>", self._pencere_boyutu_degisti)
-
-    def _pencere_boyutu_degisti(self, event=None):
-        # Pencere buyudukce/kucüldükce durum banner'inin metni de buna gore sarilsin
-        if event is not None and event.widget is self.pencere:
-            yeni_genislik = max(self.pencere.winfo_width() - 60, 200)
-            self.durum_etiketi.config(wraplength=yeni_genislik)
+        self._scripti_yukle()
 
     # ------------------------------------------------------------
-    # ARAYUZ
+    # ARAYUZ (tamamen standart Tkinter, ozel renk yok)
     # ------------------------------------------------------------
     def _arayuzu_kur(self):
-        tk.Label(
-            self.pencere, text="🎬 CANAVAR ASİSTAN", font=("Segoe UI", 20, "bold"),
-            bg=RENK_ZEMIN, fg="white"
-        ).pack(pady=(25, 0))
+        ana_cerceve = tk.Frame(self.pencere)
+        ana_cerceve.pack(fill="both", expand=True, padx=10, pady=10)
 
         tk.Label(
-            self.pencere, text="Manga Shorts Otomasyon - Ana Kontrol Paneli",
-            font=("Segoe UI", 10), bg=RENK_ZEMIN, fg=RENK_SOLUK
-        ).pack(pady=(0, 25))
+            ana_cerceve, text="Canavar Asistan - Kontrol Paneli",
+            font=("Segoe UI", 14, "bold")
+        ).pack(anchor="w")
 
-        # --- Buton 1: script.txt duzenle ---
-        self._buyuk_buton(
-            "📝  Script.txt Düzenle", self.script_duzenle,
-            RENK_KUTU, "Not Defteri ile script.txt dosyasını açar"
+        # --- Script.txt duzenleyici ---
+        tk.Label(ana_cerceve, text="script.txt icerigi:", font=("Segoe UI", 10)).pack(
+            anchor="w", pady=(12, 2)
         )
 
-        # --- Buton 2: Python kaba kurgu ---
-        self.kurgu_butonu = self._buyuk_buton(
-            "🎞️  PYTHON KABA KURGUYU BAŞLAT", self.kaba_kurguyu_baslat,
-            RENK_VURGU, "Panelleri/karakterleri işleyip taslak videoyu üretir"
-        )
+        self.script_kutusu = tk.Text(ana_cerceve, height=12, wrap="word", undo=True)
+        self.script_kutusu.pack(fill="both", expand=True)
 
-        # --- Buton 3: After Effects ---
-        self.ae_butonu = self._buyuk_buton(
-            "🔥  AFTER EFFECTS ASİSTANINI ATEŞLE", self.after_effects_baslat,
-            "#c0392b", "AE'yi açıp canavar_asistan.jsx'i otomatik yükler"
-        )
-
-        # --- Ayarlar (AE yolu / jsx yolu) kucuk link ---
-        ayar_cerceve = tk.Frame(self.pencere, bg=RENK_ZEMIN)
-        ayar_cerceve.pack(pady=(5, 15))
         tk.Button(
-            ayar_cerceve, text="⚙ AE Yolu / Script Ayarları", command=self.ayarlari_duzenle,
-            bg=RENK_ZEMIN, fg=RENK_SOLUK, relief="flat", font=("Segoe UI", 8, "underline"),
-            activebackground=RENK_ZEMIN, activeforeground="white", bd=0
-        ).pack()
+            ana_cerceve, text="Scripti Kaydet", command=self.scripti_kaydet
+        ).pack(anchor="e", pady=(6, 12))
 
-        # --- Durum banner'i ---
-        self.durum_etiketi = tk.Label(
-            self.pencere, text="Hazır.", font=("Segoe UI", 11, "bold"),
-            bg=RENK_KUTU, fg=RENK_SOLUK, wraplength=500, justify="center", pady=12
+        # --- Ana islem butonlari ---
+        buton_cercevesi = tk.Frame(ana_cerceve)
+        buton_cercevesi.pack(fill="x", pady=(0, 6))
+
+        self.kurgu_butonu = tk.Button(
+            buton_cercevesi, text="PYTHON KABA KURGUYU BASLAT",
+            command=self.kaba_kurguyu_baslat, font=("Segoe UI", 10, "bold"),
+            height=2
         )
-        self.durum_etiketi.pack(fill="x", padx=20, pady=(10, 10))
+        self.kurgu_butonu.pack(fill="x", pady=3)
+
+        self.ae_butonu = tk.Button(
+            buton_cercevesi, text="AFTER EFFECTS ASISTANINI ATESLE",
+            command=self.after_effects_baslat, font=("Segoe UI", 10, "bold"),
+            height=2
+        )
+        self.ae_butonu.pack(fill="x", pady=3)
+
+        tk.Button(
+            buton_cercevesi, text="AE Yolu / Script Ayarlari",
+            command=self.ayarlari_duzenle, font=("Segoe UI", 8)
+        ).pack(anchor="w", pady=(4, 0))
+
+        # --- Durum banner'i (yesil/kirmizi - suslemesiz, sadece durum icin) ---
+        self.durum_etiketi = tk.Label(
+            ana_cerceve, text="Hazir.", font=("Segoe UI", 10, "bold"),
+            relief="groove", pady=8
+        )
+        self.durum_etiketi.pack(fill="x", pady=(6, 6))
 
         # --- Log alani ---
-        tk.Label(self.pencere, text="İşlem Günlüğü:", font=("Segoe UI", 9),
-                 bg=RENK_ZEMIN, fg=RENK_SOLUK).pack(anchor="w", padx=20)
+        tk.Label(ana_cerceve, text="Islem Gunlugu:", font=("Segoe UI", 9)).pack(anchor="w")
 
-        self.log_kutusu = scrolledtext.ScrolledText(
-            self.pencere, height=10, bg="#0f0f1a", fg="#7ee787",
-            font=("Consolas", 9), relief="flat", wrap="word"
-        )
-        self.log_kutusu.pack(fill="both", expand=True, padx=20, pady=(5, 20))
+        self.log_kutusu = scrolledtext.ScrolledText(ana_cerceve, height=10, wrap="word")
+        self.log_kutusu.pack(fill="both", expand=True, pady=(2, 0))
         self.log_kutusu.configure(state="disabled")
 
-    def _buyuk_buton(self, metin, komut, renk, aciklama):
-        cerceve = tk.Frame(self.pencere, bg=RENK_ZEMIN)
-        cerceve.pack(fill="x", padx=20, pady=6)
+    # ------------------------------------------------------------
+    # SCRIPT.TXT: PANEL ICINDEN OKU / KAYDET
+    # ------------------------------------------------------------
+    def _scripti_yukle(self):
+        if os.path.exists(SCRIPT_TXT_YOLU):
+            try:
+                with open(SCRIPT_TXT_YOLU, "r", encoding="utf-8") as f:
+                    icerik = f.read()
+                self.script_kutusu.delete("1.0", "end")
+                self.script_kutusu.insert("1.0", icerik)
+                self.log_yaz("script.txt yuklendi.")
+            except Exception as hata:
+                self.log_yaz("script.txt okunamadi: " + str(hata))
+        else:
+            self.log_yaz("script.txt henuz yok. 'Scripti Kaydet' ile yeni bir tane olusturabilirsin.")
 
-        buton = tk.Button(
-            cerceve, text=metin, command=komut, font=("Segoe UI", 12, "bold"),
-            bg=renk, fg="white", relief="flat", pady=14, cursor="hand2"
-        )
-        buton.pack(fill="x")
-
-        tk.Label(cerceve, text=aciklama, font=("Segoe UI", 8), bg=RENK_ZEMIN, fg=RENK_SOLUK).pack(pady=(2, 0))
-        return buton
+    def scripti_kaydet(self):
+        try:
+            icerik = self.script_kutusu.get("1.0", "end-1c")
+            with open(SCRIPT_TXT_YOLU, "w", encoding="utf-8") as f:
+                f.write(icerik)
+            self.log_yaz("script.txt kaydedildi.")
+            self.durumu_guncelle("script.txt kaydedildi.", RENK_YESIL, "white")
+        except Exception as hata:
+            self.log_yaz("script.txt kaydedilemedi: " + str(hata))
+            self.durumu_guncelle("script.txt kaydedilemedi: " + str(hata), RENK_KIRMIZI, "white")
 
     # ------------------------------------------------------------
     # LOG / DURUM YARDIMCILARI
@@ -160,49 +176,30 @@ class KontrolPaneli:
             self.log_kutusu.configure(state="disabled")
         self.pencere.after(0, _yaz)
 
-    def durumu_guncelle(self, mesaj, renk=RENK_KUTU, yazi_rengi=RENK_SOLUK):
+    def durumu_guncelle(self, mesaj, renk=None, yazi_rengi=None):
         def _guncelle():
-            self.durum_etiketi.config(text=mesaj, bg=renk, fg=yazi_rengi)
+            if renk:
+                self.durum_etiketi.config(text=mesaj, bg=renk, fg=yazi_rengi or "black")
+            else:
+                self.durum_etiketi.config(text=mesaj, bg=self.pencere.cget("bg"), fg="black")
         self.pencere.after(0, _guncelle)
 
     # ------------------------------------------------------------
-    # BUTON 1: SCRIPT.TXT DUZENLE
-    # ------------------------------------------------------------
-    def script_duzenle(self):
-        if not os.path.exists(SCRIPT_TXT_YOLU):
-            messagebox.showwarning(
-                "script.txt bulunamadı",
-                f"'{SCRIPT_TXT_YOLU}' bulunamadı.\n"
-                "Önce 'PYTHON KABA KURGUYU BAŞLAT' butonuna bir kere basarak "
-                "otomatik şablonun oluşmasını sağlayabilirsin."
-            )
-            return
-        try:
-            if sys.platform.startswith("win"):
-                subprocess.Popen(["notepad.exe", SCRIPT_TXT_YOLU])
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", "-e", SCRIPT_TXT_YOLU])
-            else:
-                subprocess.Popen(["xdg-open", SCRIPT_TXT_YOLU])
-            self.log_yaz("📝 script.txt Not Defteri ile açıldı.")
-        except Exception as hata:
-            messagebox.showerror("Açılamadı", f"script.txt açılamadı:\n{hata}")
-
-    # ------------------------------------------------------------
-    # BUTON 2: PYTHON KABA KURGUYU BASLAT
+    # PYTHON KABA KURGUYU BASLAT
     # ------------------------------------------------------------
     def kaba_kurguyu_baslat(self):
         if self._islem_calisiyor:
-            messagebox.showinfo("Meşgul", "Zaten bir işlem çalışıyor, bitmesini bekle.")
+            messagebox.showinfo("Mesgul", "Zaten bir islem calisiyor, bitmesini bekle.")
             return
         if not os.path.exists(APP_PY_YOLU):
-            messagebox.showerror("app.py bulunamadı", f"'{APP_PY_YOLU}' bulunamadı.")
+            messagebox.showerror("Bulunamadi", "app.py bulunamadi: " + APP_PY_YOLU)
             return
 
         self._islem_calisiyor = True
-        self.kurgu_butonu.config(state="disabled", text="⏳ İşleniyor...")
-        self.durumu_guncelle("Python kaba kurgu motoru çalışıyor, lütfen bekle...", RENK_KUTU, "white")
-        self.log_yaz("\n▶ python app.py başlatıldı...")
+        self.kurgu_butonu.config(state="disabled", text="ISLENIYOR...")
+        self.durumu_guncelle("Python kaba kurgu motoru calisiyor, lutfen bekle...")
+        self.log_yaz("")
+        self.log_yaz("python app.py baslatildi...")
 
         threading.Thread(target=self._kaba_kurgu_arka_plan, daemon=True).start()
 
@@ -218,6 +215,8 @@ class KontrolPaneli:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 bufsize=1,
                 **ek_parametreler,
             )
@@ -231,34 +230,34 @@ class KontrolPaneli:
 
             islem.wait()
             cikti_metni = "\n".join(tam_cikti)
-            basarili = islem.returncode == 0 and ("BİTTİ" in cikti_metni or "✅" in cikti_metni)
+            basarili = islem.returncode == 0 and "BITTI" in cikti_metni.upper()
 
             if basarili:
                 self.durumu_guncelle(
-                    "✅ Kaba Kurgu Videosu 'output_shorts' Klasöründe Hazır!",
+                    "Kaba Kurgu Videosu 'output_shorts' klasorunde hazir.",
                     RENK_YESIL, "white"
                 )
-                self.log_yaz("✅ İşlem başarıyla tamamlandı.")
+                self.log_yaz("Islem basariyla tamamlandi.")
             elif islem.returncode == 0:
                 self.durumu_guncelle(
-                    "⚠️ İşlem bitti ama video üretilememiş olabilir. Günlüğü kontrol et.",
-                    "#f39c12", "white"
+                    "Islem bitti ama video uretilememis olabilir. Gunlugu kontrol et.",
+                    RENK_KIRMIZI, "white"
                 )
             else:
-                self.durumu_guncelle(f"❌ Hata oluştu (çıkış kodu {islem.returncode}).", RENK_KIRMIZI, "white")
-                self.log_yaz(f"❌ Çıkış kodu: {islem.returncode}")
+                self.durumu_guncelle("Hata olustu (cikis kodu " + str(islem.returncode) + ").", RENK_KIRMIZI, "white")
+                self.log_yaz("Cikis kodu: " + str(islem.returncode))
 
         except Exception as hata:
-            self.durumu_guncelle(f"❌ Beklenmeyen hata: {hata}", RENK_KIRMIZI, "white")
-            self.log_yaz(f"❌ HATA: {hata}")
+            self.durumu_guncelle("Beklenmeyen hata: " + str(hata), RENK_KIRMIZI, "white")
+            self.log_yaz("HATA: " + str(hata))
         finally:
             self._islem_calisiyor = False
             self.pencere.after(0, lambda: self.kurgu_butonu.config(
-                state="normal", text="🎞️  PYTHON KABA KURGUYU BAŞLAT"
+                state="normal", text="PYTHON KABA KURGUYU BASLAT"
             ))
 
     # ------------------------------------------------------------
-    # BUTON 3: AFTER EFFECTS ASISTANINI ATESLE
+    # AFTER EFFECTS ASISTANINI ATESLE
     # ------------------------------------------------------------
     def after_effects_baslat(self):
         ae_yolu = self.ayarlar.get("ae_yolu")
@@ -274,34 +273,32 @@ class KontrolPaneli:
             if not jsx_yolu:
                 return
 
-        self.log_yaz(f"\n▶ After Effects başlatılıyor: {ae_yolu}")
-        self.log_yaz(f"   Script: {jsx_yolu}")
-        self.durumu_guncelle("🔥 After Effects başlatılıyor...", RENK_KUTU, "white")
+        self.log_yaz("")
+        self.log_yaz("After Effects baslatiliyor: " + ae_yolu)
+        self.log_yaz("Script: " + jsx_yolu)
+        self.durumu_guncelle("After Effects baslatiliyor...")
 
         try:
             subprocess.Popen([ae_yolu, "-r", jsx_yolu])
-            self.durumu_guncelle(
-                "🔥 After Effects başlatıldı! AE açılınca script paneli görünmeli.",
-                RENK_YESIL, "white"
-            )
-            self.log_yaz("✅ After Effects komutu gönderildi.")
+            self.durumu_guncelle("After Effects baslatildi.", RENK_YESIL, "white")
+            self.log_yaz("After Effects komutu gonderildi.")
         except Exception as hata:
-            self.durumu_guncelle(f"❌ After Effects başlatılamadı: {hata}", RENK_KIRMIZI, "white")
+            self.durumu_guncelle("After Effects baslatilamadi: " + str(hata), RENK_KIRMIZI, "white")
             messagebox.showerror(
-                "Başlatılamadı",
-                f"After Effects başlatılamadı:\n{hata}\n\n"
-                "AE'nin kurulu yolunu 'AE Yolu / Script Ayarları' üzerinden tekrar seçmeyi dene."
+                "Baslatilamadi",
+                "After Effects baslatilamadi:\n" + str(hata) +
+                "\n\nAE yolunu 'AE Yolu / Script Ayarlari' uzerinden tekrar secmeyi dene."
             )
 
     def _ae_yolunu_sor(self):
         messagebox.showinfo(
             "AfterFX.exe konumu",
-            "After Effects'in kurulu olduğu 'AfterFX.exe' dosyasını seçmen gerekiyor.\n"
-            r"Genelde şurada bulunur: C:\Program Files\Adobe\Adobe After Effects <sürüm>\Support Files\AfterFX.exe"
+            "After Effects'in kurulu oldugu 'AfterFX.exe' dosyasini secmen gerekiyor.\n"
+            r"Genelde suradadir: C:\Program Files\Adobe\Adobe After Effects <surum>\Support Files\AfterFX.exe"
         )
         yol = filedialog.askopenfilename(
-            title="AfterFX.exe dosyasını seç",
-            filetypes=[("Uygulama", "*.exe"), ("Tüm dosyalar", "*.*")]
+            title="AfterFX.exe dosyasini sec",
+            filetypes=[("Uygulama", "*.exe"), ("Tum dosyalar", "*.*")]
         )
         if yol:
             self.ayarlar["ae_yolu"] = yol
@@ -317,11 +314,11 @@ class KontrolPaneli:
 
         messagebox.showinfo(
             "canavar_asistan.jsx konumu",
-            "'canavar_asistan.jsx' dosyasını seçmen gerekiyor."
+            "'canavar_asistan.jsx' dosyasini secmen gerekiyor."
         )
         yol = filedialog.askopenfilename(
-            title="canavar_asistan.jsx dosyasını seç",
-            filetypes=[("JSX Script", "*.jsx"), ("Tüm dosyalar", "*.*")]
+            title="canavar_asistan.jsx dosyasini sec",
+            filetypes=[("JSX Script", "*.jsx"), ("Tum dosyalar", "*.*")]
         )
         if yol:
             self.ayarlar["jsx_yolu"] = yol
@@ -335,13 +332,13 @@ class KontrolPaneli:
         pencere = tk.Toplevel(self.pencere)
         pencere.title("Ayarlar")
         pencere.geometry("480x220")
-        pencere.configure(bg=RENK_ZEMIN)
 
-        tk.Label(pencere, text="AfterFX.exe yolu:", bg=RENK_ZEMIN, fg="white",
-                 font=("Segoe UI", 10)).pack(pady=(15, 5), padx=15, anchor="w")
+        tk.Label(pencere, text="AfterFX.exe yolu:", font=("Segoe UI", 10)).pack(
+            pady=(15, 5), padx=15, anchor="w"
+        )
         ae_etiketi = tk.Label(
-            pencere, text=self.ayarlar.get("ae_yolu", "(seçilmedi)"),
-            bg=RENK_KUTU, fg=RENK_SOLUK, font=("Segoe UI", 8), wraplength=440, justify="left", anchor="w"
+            pencere, text=self.ayarlar.get("ae_yolu", "(secilmedi)"),
+            font=("Segoe UI", 8), wraplength=440, justify="left", anchor="w"
         )
         ae_etiketi.pack(fill="x", padx=15)
 
@@ -350,26 +347,25 @@ class KontrolPaneli:
             if yol:
                 ae_etiketi.config(text=yol)
 
-        tk.Button(pencere, text="AfterFX.exe Seç", command=ae_sec, bg=RENK_VURGU, fg="white",
-                  relief="flat", padx=10, pady=6).pack(pady=(5, 15), padx=15, anchor="w")
+        tk.Button(pencere, text="AfterFX.exe Sec", command=ae_sec).pack(pady=(5, 15), padx=15, anchor="w")
 
-        tk.Label(pencere, text="canavar_asistan.jsx yolu:", bg=RENK_ZEMIN, fg="white",
-                 font=("Segoe UI", 10)).pack(pady=(0, 5), padx=15, anchor="w")
+        tk.Label(pencere, text="canavar_asistan.jsx yolu:", font=("Segoe UI", 10)).pack(
+            pady=(0, 5), padx=15, anchor="w"
+        )
         jsx_etiketi = tk.Label(
-            pencere, text=self.ayarlar.get("jsx_yolu", "(seçilmedi)"),
-            bg=RENK_KUTU, fg=RENK_SOLUK, font=("Segoe UI", 8), wraplength=440, justify="left", anchor="w"
+            pencere, text=self.ayarlar.get("jsx_yolu", "(secilmedi)"),
+            font=("Segoe UI", 8), wraplength=440, justify="left", anchor="w"
         )
         jsx_etiketi.pack(fill="x", padx=15)
 
         def jsx_sec():
-            yol = filedialog.askopenfilename(title="canavar_asistan.jsx seç", filetypes=[("JSX", "*.jsx")])
+            yol = filedialog.askopenfilename(title="canavar_asistan.jsx sec", filetypes=[("JSX", "*.jsx")])
             if yol:
                 self.ayarlar["jsx_yolu"] = yol
                 ayarlari_kaydet(self.ayarlar)
                 jsx_etiketi.config(text=yol)
 
-        tk.Button(pencere, text="canavar_asistan.jsx Seç", command=jsx_sec, bg=RENK_VURGU, fg="white",
-                  relief="flat", padx=10, pady=6).pack(pady=(5, 15), padx=15, anchor="w")
+        tk.Button(pencere, text="canavar_asistan.jsx Sec", command=jsx_sec).pack(pady=(5, 15), padx=15, anchor="w")
 
 
 if __name__ == "__main__":

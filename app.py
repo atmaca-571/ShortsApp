@@ -23,6 +23,8 @@ import math
 import random
 import time as zaman_modulu
 import sys
+import urllib.request
+import hashlib
 
 # Windows konsolunun eski kod sayfasi (cp1252 gibi) yuzunden Turkce karakterlerde
 # veya herhangi bir ozel karakterde UnicodeEncodeError almamak icin, stdout/stderr'i
@@ -86,11 +88,63 @@ def script_yoksa_ornek_olustur():
 # ============================================================================
 # DOSYA BULMA YARDIMCILARI
 # ============================================================================
+def url_mu(deger):
+    deger = (deger or "").strip().lower()
+    return deger.startswith("http://") or deger.startswith("https://")
+
+
+def urlden_dosya_adi_uret(url):
+    """URL'nin sonundaki dosya adini kullanmayi dener; olmazsa hash uretir."""
+    temiz = url.split("?")[0].split("#")[0]
+    son_parca = temiz.rstrip("/").split("/")[-1]
+    if son_parca and "." in son_parca and len(son_parca) < 100:
+        return son_parca
+
+    uzanti = ".png" if temiz.lower().endswith(".png") else ".jpg"
+    return hashlib.md5(url.encode("utf-8")).hexdigest() + uzanti
+
+
+def gorseli_indir(url, hedef_klasor):
+    """
+    Verilen URL'den gorseli indirip hedef_klasor'e kaydeder. Ayni URL daha
+    once indirilmisse (dosya zaten varsa) TEKRAR INDIRMEZ, hizli olsun diye.
+    Basarisiz olursa None doner, cagiran taraf placeholder ile devam eder.
+    """
+    try:
+        dosya_adi = urlden_dosya_adi_uret(url)
+        hedef_yol = os.path.join(hedef_klasor, dosya_adi)
+
+        if os.path.exists(hedef_yol):
+            print(f"  Gorsel zaten indirilmis, tekrar indirilmiyor: {dosya_adi}")
+            return hedef_yol
+
+        print(f"  Gorsel indiriliyor: {url}")
+        istek = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(istek, timeout=15) as yanit:
+            veri = yanit.read()
+
+        with open(hedef_yol, "wb") as f:
+            f.write(veri)
+
+        print(f"  Indirildi: {dosya_adi}")
+        return hedef_yol
+    except Exception as hata:
+        print(f"  UYARI: Gorsel indirilemedi ({url}): {hata}")
+        return None
+
+
 def arkaplan_dosyasi_bul(dosya_adi):
     tam_yol = os.path.join(ARKAPLAN_KLASORU, dosya_adi)
     if os.path.exists(tam_yol):
         return tam_yol
     return None
+
+
+def arkaplan_yolunu_coz(arkaplan_degeri):
+    """Arkaplan alani bir URL ise indirir, degilse yerel dosyayi arar."""
+    if url_mu(arkaplan_degeri):
+        return gorseli_indir(arkaplan_degeri, ARKAPLAN_KLASORU)
+    return arkaplan_dosyasi_bul(arkaplan_degeri)
 
 
 def karakter_dosyasi_bul(karakter_adi):
@@ -102,6 +156,13 @@ def karakter_dosyasi_bul(karakter_adi):
         if dosya.lower().startswith(karakter_adi) and dosya.lower().endswith(".png"):
             return os.path.join(KARAKTER_KLASORU, dosya)
     return None
+
+
+def karakter_yolunu_coz(karakter_adi):
+    """Karakter alani bir URL ise indirir, degilse ismiyle baslayan yerel dosyayi arar."""
+    if url_mu(karakter_adi):
+        return gorseli_indir(karakter_adi, KARAKTER_KLASORU)
+    return karakter_dosyasi_bul(karakter_adi)
 
 
 # ============================================================================
@@ -248,11 +309,15 @@ def script_satirini_ayristir(satir, satir_no):
             tanim = tanim.strip()
             if not tanim:
                 continue
-            alt_parcalar = tanim.split(":")
+            # rsplit kullanilir cunku 'ad' bir URL olabilir (http://... icinde
+            # zaten ':' karakteri var), bu yuzden SONDAN en fazla 2 kez ayiriyoruz.
+            alt_parcalar = tanim.rsplit(":", 2)
             if len(alt_parcalar) != 3:
                 print(f"  UYARI: Satır {satir_no}: karakter tanımı hatalı, atlandı: '{tanim}'")
                 continue
-            ad, pozisyon, efekt = [p.strip().lower() for p in alt_parcalar]
+            ad = alt_parcalar[0].strip()
+            pozisyon = alt_parcalar[1].strip().lower()
+            efekt = alt_parcalar[2].strip().lower()
             karakterler.append((ad, pozisyon, efekt))
 
     return {
@@ -309,7 +374,7 @@ def sahneyi_isle(sahne, sahne_no, gecici_klasor):
     print(f"  Sahne {sahne_no}: süre={sahne['sure']}sn, arkaplan='{sahne['arkaplan']}', "
           f"{len(sahne['karakterler'])} karakter")
 
-    arkaplan_yolu = arkaplan_dosyasi_bul(sahne["arkaplan"])
+    arkaplan_yolu = arkaplan_yolunu_coz(sahne["arkaplan"])
     if not arkaplan_yolu:
         print(f"    UYARI: Arka plan bulunamadı: '{sahne['arkaplan']}' -> düz siyah zeminle devam ediliyor.")
         gecici_arkaplan = os.path.join(gecici_klasor, f"siyah_{sahne_no}.jpg")
@@ -323,7 +388,7 @@ def sahneyi_isle(sahne, sahne_no, gecici_klasor):
     katmanlar = [arkaplan_klibi_olustur(arkaplan_yolu, sahne["sure"])]
 
     for ad, pozisyon, efekt in sahne["karakterler"]:
-        karakter_yolu = karakter_dosyasi_bul(ad)
+        karakter_yolu = karakter_yolunu_coz(ad)
         if not karakter_yolu:
             print(f"    UYARI: Karakter bulunamadı: '{ad}' (input_characters içine '{ad}.png' at) -> atlandı.")
             continue

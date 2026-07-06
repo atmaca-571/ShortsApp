@@ -1,31 +1,27 @@
 """
 kontrol_paneli.py
 ------------------
-Canavar Asistan - Ana Kontrol Paneli (SADE / KARARLI SURUM)
+Canavar Asistan - Ana Kontrol Paneli (Enterprise Refactor)
 
-Bu dosyayi, LayerEngine projenin (app.py, script.txt'nin bulundugu) AYNI
-klasorune koy ve calistir:
-    python kontrol_paneli.py
-
-Bu surumde:
-- Tasarim tamamen sade, standart Tkinter (renk suslemesi yok).
-- script.txt panelin icinden okunup duzenlenip kaydedilebiliyor (Not Defteri
-  ACILMIYOR).
-- Tum emoji/ozel karakterler loglardan temizlendi (Windows konsolunda
-  UnicodeEncodeError vermesin diye).
-- Pencere buyutulebilir, ic bilesenler pencereyle birlikte esniyor.
+Mimari ozeti:
+- LatestRenderState: son uretilen video yolunu tutan Singleton sinif
+- Subprocess ciktisi bir queue.Queue'ya akar, Tkinter ana thread'i
+  root.after(100, ...) ile bu kuyrugu non-blocking okur (mainloop hic bloke
+  olmaz)
+- "SON VIDEOYU OYNAT" ve "KLASORLERI AC" butonlari OS seviyesinde
+  subprocess/os.startfile ile calisir
+- Basari/hata banner'i sabit renklerle: #4CAF50 / #F44336
 """
 
 import os
 import sys
 import json
+import queue
 import threading
 import subprocess
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
 
-# Windows'ta bu script konsolsuz (pyw) calistirilsa bile, olasi print()
-# cagrilarinda UnicodeEncodeError almamak icin stdout/stderr'i UTF-8'e zorla.
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
@@ -33,16 +29,19 @@ except Exception:
     pass
 
 # ============================================================================
-# YOLLAR VE AYARLAR
+# YOLLAR
 # ============================================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SCRIPT_TXT_YOLU = os.path.join(BASE_DIR, "script.txt")
 APP_PY_YOLU = os.path.join(BASE_DIR, "app.py")
 OUTPUT_KLASORU = os.path.join(BASE_DIR, "output_shorts")
+ARKAPLAN_KLASORU = os.path.join(BASE_DIR, "input_backgrounds")
+KARAKTER_KLASORU = os.path.join(BASE_DIR, "input_characters")
+SES_KLASORU = os.path.join(BASE_DIR, "input_audio")
 AYARLAR_DOSYASI = os.path.join(BASE_DIR, "kontrol_paneli_ayarlar.json")
 
-RENK_YESIL = "#2ecc71"
-RENK_KIRMIZI = "#e74c3c"
+RENK_BASARILI = "#4CAF50"
+RENK_HATALI = "#F44336"
 
 
 def ayarlari_yukle():
@@ -63,83 +62,141 @@ def ayarlari_kaydet(ayarlar):
         pass
 
 
+# ============================================================================
+# SINGLETON: LatestRenderState
+# ============================================================================
+class LatestRenderState:
+    _ornek = None
+
+    def __new__(cls):
+        if cls._ornek is None:
+            cls._ornek = super().__new__(cls)
+            cls._ornek.latest_output_path = None
+        return cls._ornek
+
+
+# ============================================================================
+# OS SEVIYESI YARDIMCILAR
+# ============================================================================
+def klasoru_ac(yol):
+    try:
+        os.makedirs(yol, exist_ok=True)
+        if sys.platform.startswith("win"):
+            os.startfile(yol)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", yol])
+        else:
+            subprocess.Popen(["xdg-open", yol])
+    except Exception as e:
+        messagebox.showerror("Acilamadi", f"Klasor acilamadi:\n{e}")
+
+
+def dosyayi_oynat(yol):
+    try:
+        if sys.platform.startswith("win"):
+            subprocess.Popen(["cmd", "/c", "start", "", yol], shell=True)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", yol])
+        else:
+            subprocess.Popen(["xdg-open", yol])
+    except Exception as e:
+        messagebox.showerror("Oynatilamadi", f"Video oynatilamadi:\n{e}")
+
+
+# ============================================================================
+# ANA PANEL
+# ============================================================================
 class KontrolPaneli:
     def __init__(self, pencere):
         self.pencere = pencere
         self.pencere.title("Canavar Asistan - Kontrol Paneli")
-        self.pencere.geometry("700x700")
-        self.pencere.minsize(500, 500)
+        self.pencere.geometry("720x760")
+        self.pencere.minsize(520, 520)
         self.pencere.resizable(True, True)
 
         self.ayarlar = ayarlari_yukle()
+        self.render_durumu = LatestRenderState()
         self._islem_calisiyor = False
+        self._log_kuyrugu = queue.Queue()
 
         self._arayuzu_kur()
         self._scripti_yukle()
+        self._log_kuyrugunu_dinle()
 
     # ------------------------------------------------------------
-    # ARAYUZ (tamamen standart Tkinter, ozel renk yok)
+    # ARAYUZ
     # ------------------------------------------------------------
     def _arayuzu_kur(self):
-        ana_cerceve = tk.Frame(self.pencere)
-        ana_cerceve.pack(fill="both", expand=True, padx=10, pady=10)
+        ana = tk.Frame(self.pencere)
+        ana.pack(fill="both", expand=True, padx=10, pady=10)
 
-        tk.Label(
-            ana_cerceve, text="Canavar Asistan - Kontrol Paneli",
-            font=("Segoe UI", 14, "bold")
-        ).pack(anchor="w")
+        tk.Label(ana, text="Canavar Asistan - Kontrol Paneli", font=("Segoe UI", 14, "bold")).pack(anchor="w")
 
-        # --- Script.txt duzenleyici ---
-        tk.Label(ana_cerceve, text="script.txt icerigi:", font=("Segoe UI", 10)).pack(
-            anchor="w", pady=(12, 2)
-        )
-
-        self.script_kutusu = tk.Text(ana_cerceve, height=12, wrap="word", undo=True)
+        tk.Label(ana, text="script.txt icerigi:", font=("Segoe UI", 10)).pack(anchor="w", pady=(12, 2))
+        self.script_kutusu = tk.Text(ana, height=10, wrap="word", undo=True)
         self.script_kutusu.pack(fill="both", expand=True)
 
-        tk.Button(
-            ana_cerceve, text="Scripti Kaydet", command=self.scripti_kaydet
-        ).pack(anchor="e", pady=(6, 12))
+        tk.Button(ana, text="Scripti Kaydet", command=self.scripti_kaydet).pack(anchor="e", pady=(6, 12))
 
         # --- Ana islem butonlari ---
-        buton_cercevesi = tk.Frame(ana_cerceve)
+        buton_cercevesi = tk.Frame(ana)
         buton_cercevesi.pack(fill="x", pady=(0, 6))
 
         self.kurgu_butonu = tk.Button(
             buton_cercevesi, text="PYTHON KABA KURGUYU BASLAT",
-            command=self.kaba_kurguyu_baslat, font=("Segoe UI", 10, "bold"),
-            height=2
+            command=self.kaba_kurguyu_baslat, font=("Segoe UI", 10, "bold"), height=2
         )
         self.kurgu_butonu.pack(fill="x", pady=3)
 
         self.ae_butonu = tk.Button(
             buton_cercevesi, text="AFTER EFFECTS ASISTANINI ATESLE",
-            command=self.after_effects_baslat, font=("Segoe UI", 10, "bold"),
-            height=2
+            command=self.after_effects_baslat, font=("Segoe UI", 10, "bold"), height=2
         )
         self.ae_butonu.pack(fill="x", pady=3)
 
+        self.oynat_butonu = tk.Button(
+            buton_cercevesi, text="SON VIDEOYU OYNAT",
+            command=self.son_videoyu_oynat, font=("Segoe UI", 10, "bold"), height=2,
+            state="disabled"
+        )
+        self.oynat_butonu.pack(fill="x", pady=3)
+
+        # --- Klasor kisayollari ---
+        klasor_cercevesi = tk.Frame(ana)
+        klasor_cercevesi.pack(fill="x", pady=(0, 6))
+
+        tk.Label(klasor_cercevesi, text="Klasorleri Ac:", font=("Segoe UI", 9)).pack(anchor="w")
+
+        klasor_buton_satiri = tk.Frame(klasor_cercevesi)
+        klasor_buton_satiri.pack(fill="x")
+
+        tk.Button(klasor_buton_satiri, text="Arka Planlar",
+                  command=lambda: klasoru_ac(ARKAPLAN_KLASORU)).pack(side="left", expand=True, fill="x", padx=2)
+        tk.Button(klasor_buton_satiri, text="Karakterler",
+                  command=lambda: klasoru_ac(KARAKTER_KLASORU)).pack(side="left", expand=True, fill="x", padx=2)
+        tk.Button(klasor_buton_satiri, text="Ses",
+                  command=lambda: klasoru_ac(SES_KLASORU)).pack(side="left", expand=True, fill="x", padx=2)
+        tk.Button(klasor_buton_satiri, text="Ciktilar",
+                  command=lambda: klasoru_ac(OUTPUT_KLASORU)).pack(side="left", expand=True, fill="x", padx=2)
+
         tk.Button(
-            buton_cercevesi, text="AE Yolu / Script Ayarlari",
-            command=self.ayarlari_duzenle, font=("Segoe UI", 8)
+            ana, text="AE Yolu / Script Ayarlari", command=self.ayarlari_duzenle, font=("Segoe UI", 8)
         ).pack(anchor="w", pady=(4, 0))
 
-        # --- Durum banner'i (yesil/kirmizi - suslemesiz, sadece durum icin) ---
+        # --- Durum banner'i ---
         self.durum_etiketi = tk.Label(
-            ana_cerceve, text="Hazir.", font=("Segoe UI", 10, "bold"),
-            relief="groove", pady=8
+            ana, text="Hazir.", font=("Segoe UI", 10, "bold"), relief="groove", pady=8
         )
         self.durum_etiketi.pack(fill="x", pady=(6, 6))
 
         # --- Log alani ---
-        tk.Label(ana_cerceve, text="Islem Gunlugu:", font=("Segoe UI", 9)).pack(anchor="w")
-
-        self.log_kutusu = scrolledtext.ScrolledText(ana_cerceve, height=10, wrap="word")
+        tk.Label(ana, text="Islem Gunlugu:", font=("Segoe UI", 9)).pack(anchor="w")
+        self.log_kutusu = scrolledtext.ScrolledText(ana, height=10, wrap="word")
         self.log_kutusu.pack(fill="both", expand=True, pady=(2, 0))
         self.log_kutusu.configure(state="disabled")
 
     # ------------------------------------------------------------
-    # SCRIPT.TXT: PANEL ICINDEN OKU / KAYDET
+    # SCRIPT.TXT
     # ------------------------------------------------------------
     def _scripti_yukle(self):
         if os.path.exists(SCRIPT_TXT_YOLU):
@@ -148,65 +205,73 @@ class KontrolPaneli:
                     icerik = f.read()
                 self.script_kutusu.delete("1.0", "end")
                 self.script_kutusu.insert("1.0", icerik)
-                self.log_yaz("script.txt yuklendi.")
-            except Exception as hata:
-                self.log_yaz("script.txt okunamadi: " + str(hata))
+                self._log_kuyrugu.put("script.txt yuklendi.")
+            except Exception as e:
+                self._log_kuyrugu.put(f"script.txt okunamadi: {e}")
         else:
-            self.log_yaz("script.txt henuz yok. 'Scripti Kaydet' ile yeni bir tane olusturabilirsin.")
+            self._log_kuyrugu.put("script.txt henuz yok. 'Scripti Kaydet' ile olusturabilirsin.")
 
     def scripti_kaydet(self):
         try:
             icerik = self.script_kutusu.get("1.0", "end-1c")
             with open(SCRIPT_TXT_YOLU, "w", encoding="utf-8") as f:
                 f.write(icerik)
-            self.log_yaz("script.txt kaydedildi.")
-            self.durumu_guncelle("script.txt kaydedildi.", RENK_YESIL, "white")
-        except Exception as hata:
-            self.log_yaz("script.txt kaydedilemedi: " + str(hata))
-            self.durumu_guncelle("script.txt kaydedilemedi: " + str(hata), RENK_KIRMIZI, "white")
+            self._log_kuyrugu.put("script.txt kaydedildi.")
+            self._banner_guncelle("script.txt kaydedildi.", None)
+        except Exception as e:
+            self._log_kuyrugu.put(f"script.txt kaydedilemedi: {e}")
+            self._banner_guncelle(f"script.txt kaydedilemedi: {e}", RENK_HATALI)
 
     # ------------------------------------------------------------
-    # LOG / DURUM YARDIMCILARI
+    # LOG KUYRUGU (non-blocking, queue.Queue + root.after)
     # ------------------------------------------------------------
-    def log_yaz(self, mesaj):
-        def _yaz():
-            self.log_kutusu.configure(state="normal")
-            self.log_kutusu.insert("end", mesaj + "\n")
-            self.log_kutusu.see("end")
-            self.log_kutusu.configure(state="disabled")
-        self.pencere.after(0, _yaz)
+    def _log_kuyrugunu_dinle(self):
+        try:
+            while True:
+                mesaj = self._log_kuyrugu.get_nowait()
+                self.log_kutusu.configure(state="normal")
+                self.log_kutusu.insert("end", mesaj + "\n")
+                self.log_kutusu.see("end")
+                self.log_kutusu.configure(state="disabled")
+        except queue.Empty:
+            pass
+        finally:
+            self.pencere.after(100, self._log_kuyrugunu_dinle)
 
-    def durumu_guncelle(self, mesaj, renk=None, yazi_rengi=None):
+    def _banner_guncelle(self, mesaj, renk):
         def _guncelle():
             if renk:
-                self.durum_etiketi.config(text=mesaj, bg=renk, fg=yazi_rengi or "black")
+                self.durum_etiketi.config(text=mesaj, bg=renk, fg="white")
             else:
                 self.durum_etiketi.config(text=mesaj, bg=self.pencere.cget("bg"), fg="black")
         self.pencere.after(0, _guncelle)
 
     # ------------------------------------------------------------
-    # PYTHON KABA KURGUYU BASLAT
+    # PYTHON KABA KURGUYU BASLAT (thread + queue mimarisi)
     # ------------------------------------------------------------
     def kaba_kurguyu_baslat(self):
         if self._islem_calisiyor:
-            messagebox.showinfo("Mesgul", "Zaten bir islem calisiyor, bitmesini bekle.")
+            messagebox.showinfo("Mesgul", "Zaten bir islem calisiyor.")
             return
         if not os.path.exists(APP_PY_YOLU):
-            messagebox.showerror("Bulunamadi", "app.py bulunamadi: " + APP_PY_YOLU)
+            messagebox.showerror("Bulunamadi", f"app.py bulunamadi: {APP_PY_YOLU}")
             return
 
         self._islem_calisiyor = True
         self.kurgu_butonu.config(state="disabled", text="ISLENIYOR...")
-        self.durumu_guncelle("Python kaba kurgu motoru calisiyor, lutfen bekle...")
-        self.log_yaz("")
-        self.log_yaz("python app.py baslatildi...")
+        self._banner_guncelle("Python kaba kurgu motoru calisiyor...", None)
+        self._log_kuyrugu.put("")
+        self._log_kuyrugu.put("python app.py baslatildi...")
 
-        threading.Thread(target=self._kaba_kurgu_arka_plan, daemon=True).start()
+        threading.Thread(target=self.run_engine, daemon=True).start()
 
-    def _kaba_kurgu_arka_plan(self):
+    def run_engine(self):
         ek_parametreler = {}
         if sys.platform.startswith("win"):
             ek_parametreler["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+        yeni_video_yolu = None
+        basarili = False
 
         try:
             islem = subprocess.Popen(
@@ -221,40 +286,46 @@ class KontrolPaneli:
                 **ek_parametreler,
             )
 
-            tam_cikti = []
             for satir in islem.stdout:
                 satir = satir.rstrip()
-                if satir:
-                    self.log_yaz(satir)
-                    tam_cikti.append(satir)
+                if not satir:
+                    continue
+                self._log_kuyrugu.put(satir)
+
+                if satir.startswith("RENDER_COMPLETE:"):
+                    yeni_video_yolu = satir.split("RENDER_COMPLETE:", 1)[1].strip()
 
             islem.wait()
-            cikti_metni = "\n".join(tam_cikti)
-            basarili = islem.returncode == 0 and "BITTI" in cikti_metni.upper()
+            basarili = islem.returncode == 0 and yeni_video_yolu is not None and os.path.isfile(yeni_video_yolu)
 
-            if basarili:
-                self.durumu_guncelle(
-                    "Kaba Kurgu Videosu 'output_shorts' klasorunde hazir.",
-                    RENK_YESIL, "white"
-                )
-                self.log_yaz("Islem basariyla tamamlandi.")
-            elif islem.returncode == 0:
-                self.durumu_guncelle(
-                    "Islem bitti ama video uretilememis olabilir. Gunlugu kontrol et.",
-                    RENK_KIRMIZI, "white"
-                )
-            else:
-                self.durumu_guncelle("Hata olustu (cikis kodu " + str(islem.returncode) + ").", RENK_KIRMIZI, "white")
-                self.log_yaz("Cikis kodu: " + str(islem.returncode))
+        except Exception as e:
+            self._log_kuyrugu.put(f"HATA: {e}")
+            basarili = False
 
-        except Exception as hata:
-            self.durumu_guncelle("Beklenmeyen hata: " + str(hata), RENK_KIRMIZI, "white")
-            self.log_yaz("HATA: " + str(hata))
-        finally:
-            self._islem_calisiyor = False
-            self.pencere.after(0, lambda: self.kurgu_butonu.config(
-                state="normal", text="PYTHON KABA KURGUYU BASLAT"
-            ))
+        if basarili:
+            self.render_durumu.latest_output_path = yeni_video_yolu
+            self._log_kuyrugu.put("Islem basariyla tamamlandi.")
+            self._banner_guncelle("RENDER SUCCESSFUL", RENK_BASARILI)
+            self.pencere.after(0, lambda: self.oynat_butonu.config(state="normal"))
+        else:
+            self._log_kuyrugu.put("Islem basarisiz oldu veya video dosyasi bulunamadi.")
+            self._banner_guncelle("RENDER FAILED", RENK_HATALI)
+
+        self._islem_calisiyor = False
+        self.pencere.after(0, lambda: self.kurgu_butonu.config(
+            state="normal", text="PYTHON KABA KURGUYU BASLAT"
+        ))
+
+    # ------------------------------------------------------------
+    # SON VIDEOYU OYNAT
+    # ------------------------------------------------------------
+    def son_videoyu_oynat(self):
+        yol = self.render_durumu.latest_output_path
+        if yol and os.path.exists(yol):
+            dosyayi_oynat(yol)
+            self._log_kuyrugu.put(f"Video oynatiliyor: {yol}")
+        else:
+            messagebox.showwarning("Video yok", "Henuz basariyla uretilmis bir video yok.")
 
     # ------------------------------------------------------------
     # AFTER EFFECTS ASISTANINI ATESLE
@@ -273,33 +344,25 @@ class KontrolPaneli:
             if not jsx_yolu:
                 return
 
-        self.log_yaz("")
-        self.log_yaz("After Effects baslatiliyor: " + ae_yolu)
-        self.log_yaz("Script: " + jsx_yolu)
-        self.durumu_guncelle("After Effects baslatiliyor...")
+        self._log_kuyrugu.put("")
+        self._log_kuyrugu.put(f"After Effects baslatiliyor: {ae_yolu}")
+        self._banner_guncelle("After Effects baslatiliyor...", None)
 
         try:
             subprocess.Popen([ae_yolu, "-r", jsx_yolu])
-            self.durumu_guncelle("After Effects baslatildi.", RENK_YESIL, "white")
-            self.log_yaz("After Effects komutu gonderildi.")
-        except Exception as hata:
-            self.durumu_guncelle("After Effects baslatilamadi: " + str(hata), RENK_KIRMIZI, "white")
-            messagebox.showerror(
-                "Baslatilamadi",
-                "After Effects baslatilamadi:\n" + str(hata) +
-                "\n\nAE yolunu 'AE Yolu / Script Ayarlari' uzerinden tekrar secmeyi dene."
-            )
+            self._banner_guncelle("After Effects baslatildi.", RENK_BASARILI)
+            self._log_kuyrugu.put("After Effects komutu gonderildi.")
+        except Exception as e:
+            self._banner_guncelle(f"After Effects baslatilamadi: {e}", RENK_HATALI)
+            messagebox.showerror("Baslatilamadi", f"After Effects baslatilamadi:\n{e}")
 
     def _ae_yolunu_sor(self):
         messagebox.showinfo(
             "AfterFX.exe konumu",
-            "After Effects'in kurulu oldugu 'AfterFX.exe' dosyasini secmen gerekiyor.\n"
-            r"Genelde suradadir: C:\Program Files\Adobe\Adobe After Effects <surum>\Support Files\AfterFX.exe"
+            r"After Effects'in kurulu oldugu 'AfterFX.exe' dosyasini sec."
+            r"Genelde: C:\Program Files\Adobe\Adobe After Effects <surum>\Support Files\AfterFX.exe"
         )
-        yol = filedialog.askopenfilename(
-            title="AfterFX.exe dosyasini sec",
-            filetypes=[("Uygulama", "*.exe"), ("Tum dosyalar", "*.*")]
-        )
+        yol = filedialog.askopenfilename(title="AfterFX.exe sec", filetypes=[("Uygulama", "*.exe"), ("Tumu", "*.*")])
         if yol:
             self.ayarlar["ae_yolu"] = yol
             ayarlari_kaydet(self.ayarlar)
@@ -312,14 +375,8 @@ class KontrolPaneli:
             ayarlari_kaydet(self.ayarlar)
             return varsayilan
 
-        messagebox.showinfo(
-            "canavar_asistan.jsx konumu",
-            "'canavar_asistan.jsx' dosyasini secmen gerekiyor."
-        )
-        yol = filedialog.askopenfilename(
-            title="canavar_asistan.jsx dosyasini sec",
-            filetypes=[("JSX Script", "*.jsx"), ("Tum dosyalar", "*.*")]
-        )
+        messagebox.showinfo("canavar_asistan.jsx konumu", "'canavar_asistan.jsx' dosyasini sec.")
+        yol = filedialog.askopenfilename(title="canavar_asistan.jsx sec", filetypes=[("JSX", "*.jsx")])
         if yol:
             self.ayarlar["jsx_yolu"] = yol
             ayarlari_kaydet(self.ayarlar)
@@ -333,9 +390,7 @@ class KontrolPaneli:
         pencere.title("Ayarlar")
         pencere.geometry("480x220")
 
-        tk.Label(pencere, text="AfterFX.exe yolu:", font=("Segoe UI", 10)).pack(
-            pady=(15, 5), padx=15, anchor="w"
-        )
+        tk.Label(pencere, text="AfterFX.exe yolu:", font=("Segoe UI", 10)).pack(pady=(15, 5), padx=15, anchor="w")
         ae_etiketi = tk.Label(
             pencere, text=self.ayarlar.get("ae_yolu", "(secilmedi)"),
             font=("Segoe UI", 8), wraplength=440, justify="left", anchor="w"
@@ -349,9 +404,7 @@ class KontrolPaneli:
 
         tk.Button(pencere, text="AfterFX.exe Sec", command=ae_sec).pack(pady=(5, 15), padx=15, anchor="w")
 
-        tk.Label(pencere, text="canavar_asistan.jsx yolu:", font=("Segoe UI", 10)).pack(
-            pady=(0, 5), padx=15, anchor="w"
-        )
+        tk.Label(pencere, text="canavar_asistan.jsx yolu:", font=("Segoe UI", 10)).pack(pady=(0, 5), padx=15, anchor="w")
         jsx_etiketi = tk.Label(
             pencere, text=self.ayarlar.get("jsx_yolu", "(secilmedi)"),
             font=("Segoe UI", 8), wraplength=440, justify="left", anchor="w"

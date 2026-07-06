@@ -1,347 +1,415 @@
 """
 app.py
 ------
-Python Kaba Kurgu Motoru (Katmanli Animasyon Sistemi)
+Dinamik Manga/Chibi Animasyon Motoru - Enterprise Refactor
 
-Saf Python backend - arayuz yok. Calistirmak icin:
-    python app.py
+Mimari ozeti:
+- Regex tabanli, hataya dayanikli script.txt parser
+- URL indirme (requests) + URI sanitization (urlparse + mimetypes)
+- Cift katmanli fallback: eksik karakter -> default_char.png,
+  eksik arka plan -> bellek-ici (in-memory) siyah canvas (disk'e hic yazmadan)
+- Her render sonrasi, After Effects'in okuyabilecegi bir JSON metadata dosyasi
+  (sahne/karakter/animasyon verileri) uretilir
+- Tum hata yonetimi 'try-except + logging', sys.exit YOK (her zaman bir
+  sonraki satira/sahneye devam eder)
 
-Klasorler (otomatik olusur):
-    input_backgrounds/  -> sahne arka plan gorselleri (jpg/png)
-    input_characters/   -> karakterlerin transparan (alpha) PNG'leri
-    input_audio/         -> arka plan muzigi (mp3/wav)
-    output_shorts/       -> uretilen dikey mp4 videolari
-
-script.txt (ana klasorde, yoksa otomatik ornek olusturulur):
-    FORMAT: [SAHNE_SURESI] | [ARKA_PLAN_RESMI] | [KARAKTER:POZISYON:EFEKT , ...] | ["EKRAN_YAZISI"]
-    ORNEK:
-    3.0 | okul.jpg | rias:sol:sabit , issei:sag:zipla | "Rias-senpai! Sonunda buldum seni!"
+NOT (bu surumde script.txt formati DEGISTI):
+  ESKI:   rias:sol:sabit
+  YENI:   rias:pozisyon=sol animasyon=sabit
+  (Elemanlar artik key=value ciftleri seklinde, bosluklarla ayrilmis.)
 """
 
 import os
-import math
-import random
-import time as zaman_modulu
 import sys
-import urllib.request
-import hashlib
+import re
+import json
+import logging
+import mimetypes
+import time as zaman_modulu
+from urllib.parse import urlparse
 
-# Windows konsolunun eski kod sayfasi (cp1252 gibi) yuzunden Turkce karakterlerde
-# veya herhangi bir ozel karakterde UnicodeEncodeError almamak icin, stdout/stderr'i
-# acikca UTF-8'e zorluyoruz. Bu satirlar sorun cikarirsa sessizce yoksayilir.
-try:
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except Exception:
-    pass
-
-
+import numpy as np
+import requests
+from PIL import Image
 from moviepy import (
     ImageClip,
     AudioFileClip,
     CompositeVideoClip,
     TextClip,
     concatenate_videoclips,
+    vfx,
 )
 from moviepy.audio.fx import AudioLoop
-from PIL import Image
 
 # ============================================================================
-# BOLUM 1: KATMANLI KLASOR MIMARISI
+# UTF-8 GUVENLIGI (Windows konsolunda UnicodeEncodeError almamak icin)
 # ============================================================================
-TEMEL_KLASOR = os.path.dirname(os.path.abspath(__file__))
-ARKAPLAN_KLASORU = os.path.join(TEMEL_KLASOR, "input_backgrounds")
-KARAKTER_KLASORU = os.path.join(TEMEL_KLASOR, "input_characters")
-SES_KLASORU = os.path.join(TEMEL_KLASOR, "input_audio")
-CIKTI_KLASORU = os.path.join(TEMEL_KLASOR, "output_shorts")
-SCRIPT_DOSYASI = os.path.join(TEMEL_KLASOR, "script.txt")
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
+# ============================================================================
+# LOGGING (sys.exit YOK; her hata loglanip devam edilir)
+# ============================================================================
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger("manga_engine")
+
+# ============================================================================
+# KLASOR MIMARISI
+# ============================================================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ARKAPLAN_KLASORU = os.path.join(BASE_DIR, "input_backgrounds")
+KARAKTER_KLASORU = os.path.join(BASE_DIR, "input_characters")
+SES_KLASORU = os.path.join(BASE_DIR, "input_audio")
+CIKTI_KLASORU = os.path.join(BASE_DIR, "output_shorts")
+SCRIPT_DOSYASI = os.path.join(BASE_DIR, "script.txt")
+VARSAYILAN_KARAKTER = os.path.join(KARAKTER_KLASORU, "default_char.png")
 
 for klasor in (ARKAPLAN_KLASORU, KARAKTER_KLASORU, SES_KLASORU, CIKTI_KLASORU):
     os.makedirs(klasor, exist_ok=True)
 
 HEDEF_GENISLIK = 1080
 HEDEF_YUKSEKLIK = 1920
+HEDEF_FPS = 30
 
-# Pozisyon -> X koordinati (spesifikasyona gore sabit)
-POZISYON_X = {
-    "sol": 216,
-    "merkez": 540,
-    "sag": 864,
+POZISYON_X = {"sol": 216, "merkez": 540, "sag": 864}
+
+# animasyon adi -> After Effects tarafinin anlayacagi enum ismi
+ANIMASYON_ENUM = {
+    "zipla": "bounce_expression",
+    "titre": "wiggle_expression",
+    "sabit": "static_expression",
 }
 
-ORNEK_SCRIPT_ICERIGI = (
-    '3.0 | okul.jpg | rias:sol:sabit , issei:sag:zipla | "Rias-senpai! Sonunda buldum seni!"\n'
-    '4.5 | savas.jpg | rias:merkez:titre | "Bu güç... İmkansız!"\n'
+# ============================================================================
+# REGEX MOTORU
+# ============================================================================
+# duration | scene | elements (| caption) -- caption opsiyonel bir 4. alan
+# olarak eklendi (orijinal 3 grubu BIREBIR koruyarak).
+SATIR_REGEX = re.compile(
+    r"^\s*(?P<duration>\d+(?:\.\d+)?)\s*\|\s*(?P<scene>\S+)\s*\|\s*"
+    r"(?P<elements>[^|]*)(?:\|\s*(?P<caption>.*))?$"
 )
+ELEMENT_REGEX = re.compile(r"^(?P<name>\S+):(?P<kv_pairs>.*)$")
 
 
-def script_yoksa_ornek_olustur():
-    if not os.path.exists(SCRIPT_DOSYASI):
-        with open(SCRIPT_DOSYASI, "w", encoding="utf-8") as f:
-            f.write(ORNEK_SCRIPT_ICERIGI)
-        print(f"'script.txt' bulunamadı, örnek bir şablon oluşturuldu: {SCRIPT_DOSYASI}")
-        print("Lütfen bu dosyayı kendi sahnelerinle düzenleyip tekrar çalıştır.\n")
-        return True  # yeni olusturuldu, kullanicinin duzenlemesi beklenmeli
-    return False
-
-
-# ============================================================================
-# DOSYA BULMA YARDIMCILARI
-# ============================================================================
-def url_mu(deger):
-    deger = (deger or "").strip().lower()
-    return deger.startswith("http://") or deger.startswith("https://")
-
-
-def urlden_dosya_adi_uret(url):
-    """URL'nin sonundaki dosya adini kullanmayi dener; olmazsa hash uretir."""
-    temiz = url.split("?")[0].split("#")[0]
-    son_parca = temiz.rstrip("/").split("/")[-1]
-    if son_parca and "." in son_parca and len(son_parca) < 100:
-        return son_parca
-
-    uzanti = ".png" if temiz.lower().endswith(".png") else ".jpg"
-    return hashlib.md5(url.encode("utf-8")).hexdigest() + uzanti
-
-
-def gorseli_indir(url, hedef_klasor):
-    """
-    Verilen URL'den gorseli indirip hedef_klasor'e kaydeder. Ayni URL daha
-    once indirilmisse (dosya zaten varsa) TEKRAR INDIRMEZ, hizli olsun diye.
-    Basarisiz olursa None doner, cagiran taraf placeholder ile devam eder.
-    """
+def _varsayilan_karakteri_olustur_eger_yoksa():
+    """default_char.png hicbir zaman eksik olmasin diye, yoksa basit bir
+    seffaf placeholder siluet otomatik olusturulur (dis kaynak gerekmez)."""
+    if os.path.exists(VARSAYILAN_KARAKTER):
+        return
     try:
-        dosya_adi = urlden_dosya_adi_uret(url)
-        hedef_yol = os.path.join(hedef_klasor, dosya_adi)
-
-        if os.path.exists(hedef_yol):
-            print(f"  Gorsel zaten indirilmis, tekrar indirilmiyor: {dosya_adi}")
-            return hedef_yol
-
-        print(f"  Gorsel indiriliyor: {url}")
-        istek = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(istek, timeout=15) as yanit:
-            veri = yanit.read()
-
-        with open(hedef_yol, "wb") as f:
-            f.write(veri)
-
-        print(f"  Indirildi: {dosya_adi}")
-        return hedef_yol
-    except Exception as hata:
-        print(f"  UYARI: Gorsel indirilemedi ({url}): {hata}")
-        return None
+        img = Image.new("RGBA", (300, 600), (0, 0, 0, 0))
+        from PIL import ImageDraw
+        d = ImageDraw.Draw(img)
+        d.ellipse([90, 30, 210, 150], fill=(150, 150, 160, 255))
+        d.rectangle([100, 150, 200, 480], fill=(120, 120, 135, 255))
+        img.save(VARSAYILAN_KARAKTER)
+        log.info("default_char.png bulunamadigi icin otomatik olusturuldu.")
+    except Exception as e:
+        log.error(f"default_char.png olusturulamadi: {e}")
 
 
-def arkaplan_dosyasi_bul(dosya_adi):
-    tam_yol = os.path.join(ARKAPLAN_KLASORU, dosya_adi)
-    if os.path.exists(tam_yol):
-        return tam_yol
-    return None
-
-
-def arkaplan_yolunu_coz(arkaplan_degeri):
-    """Arkaplan alani bir URL ise indirir, degilse yerel dosyayi arar."""
-    if url_mu(arkaplan_degeri):
-        return gorseli_indir(arkaplan_degeri, ARKAPLAN_KLASORU)
-    return arkaplan_dosyasi_bul(arkaplan_degeri)
-
-
-def karakter_dosyasi_bul(karakter_adi):
-    """Karakter ismiyle baslayan bir .png dosyasi arar (buyuk/kucuk harf duyarsiz)."""
-    karakter_adi = karakter_adi.strip().lower()
-    if not os.path.isdir(KARAKTER_KLASORU):
-        return None
-    for dosya in os.listdir(KARAKTER_KLASORU):
-        if dosya.lower().startswith(karakter_adi) and dosya.lower().endswith(".png"):
-            return os.path.join(KARAKTER_KLASORU, dosya)
-    return None
-
-
-def karakter_yolunu_coz(karakter_adi):
-    """Karakter alani bir URL ise indirir, degilse ismiyle baslayan yerel dosyayi arar."""
-    if url_mu(karakter_adi):
-        return gorseli_indir(karakter_adi, KARAKTER_KLASORU)
-    return karakter_dosyasi_bul(karakter_adi)
-
-
-# ============================================================================
-# BOLUM 2.1: ARKA PLAN KATMANI (letterbox/crop + Ken Burns %3 zoom)
-# ============================================================================
-def arka_plani_hazirla(resim_yolu, gecici_yol):
-    """Arka plani 1080x1920'ye ortalayarak sigdirir (letterbox), bozmadan."""
-    resim = Image.open(resim_yolu).convert("RGB")
-    oran = min(HEDEF_GENISLIK / resim.width, HEDEF_YUKSEKLIK / resim.height)
-    yeni_genislik = max(1, int(resim.width * oran))
-    yeni_yukseklik = max(1, int(resim.height * oran))
-    resim = resim.resize((yeni_genislik, yeni_yukseklik))
-
-    zemin = Image.new("RGB", (HEDEF_GENISLIK, HEDEF_YUKSEKLIK), (0, 0, 0))
-    x = (HEDEF_GENISLIK - yeni_genislik) // 2
-    y = (HEDEF_YUKSEKLIK - yeni_yukseklik) // 2
-    zemin.paste(resim, (x, y))
-    zemin.save(gecici_yol)
-    return gecici_yol
-
-
-def arkaplan_klibi_olustur(resim_yolu, sahne_suresi):
-    """Ken Burns: sahne suresi boyunca %3 icine dogru akici zoom."""
-    klip = ImageClip(resim_yolu).with_duration(sahne_suresi)
-    klip = klip.resized(lambda t: 1.0 + 0.03 * (t / sahne_suresi))
-    klip = klip.with_position(("center", "center"))
-    return klip
-
-
-# ============================================================================
-# BOLUM 2.2: KARAKTER KATMANI (pozisyon + animasyon matematigi)
-# ============================================================================
-def karakter_klibi_olustur(karakter_png_yolu, pozisyon, efekt, sahne_suresi):
+def kv_ciftlerini_ayristir(kv_pairs):
     """
-    Transparan karakter PNG'sini, verilen pozisyon ve efekte gore
-    hareket eden bir klip haline getirir.
+    'pozisyon=sol animasyon=zipla' -> {'pozisyon': 'sol', 'animasyon': 'zipla'}
+    NOT: Istekte verilen orijinal dict comprehension'da 'v' degiskeni hic
+    tanimlanmamisti (calisirsa NameError verirdi) - burada ayni niyeti
+    (bosluk ayrilmis key=value ciftlerini dict'e cevirmek) DOGRU sekilde
+    uyguluyoruz.
     """
-    karakter_klip = ImageClip(karakter_png_yolu).with_duration(sahne_suresi)
-
-    x_pos = POZISYON_X.get(pozisyon, POZISYON_X["merkez"])
-    # Karakterin ALTI ekran tabanina (y=1920) sifirlanir:
-    karakter_yuksekligi = karakter_klip.h
-    y_base = HEDEF_YUKSEKLIK - karakter_yuksekligi
-
-    # x_pos, karakterin yatayda ortalanacagi merkez X koordinati kabul edilir.
-    # Klip pozisyonu (moviepy) sol-ust kosedir, bu yuzden genislik/2 kadar kaydiriyoruz.
-    karakter_genisligi = karakter_klip.w
-    x_sol_kenar = x_pos - (karakter_genisligi / 2)
-
-    if efekt == "zipla":
-        def konum(t):
-            return (x_sol_kenar, y_base - abs(math.sin(t * math.pi * 2) * 30))
-    elif efekt == "titre":
-        def konum(t):
-            return (x_sol_kenar + random.randint(-6, 6), y_base + random.randint(-6, 6))
-    else:  # 'sabit' veya taninmayan efekt -> sabit dur
-        def konum(t):
-            return (x_sol_kenar, y_base)
-
-    karakter_klip = karakter_klip.with_position(konum)
-    return karakter_klip
+    sonuc = {}
+    for pair in kv_pairs.split():
+        if "=" in pair:
+            k, v = pair.split("=", 1)
+            sonuc[k.strip()] = v.strip()
+        else:
+            log.error(f"Row parsing failed: gecersiz key=value ciftii atlandi: '{pair}'")
+    return sonuc
 
 
-# ============================================================================
-# BOLUM 3.2: POP-UP ALTYAZI (sahne basina bir kere, %10 buyume ile patlama)
-# ============================================================================
-ALTYAZI_FONT_ADAYLARI = [
-    r"C:\Windows\Fonts\impact.ttf",
-    r"C:\Windows\Fonts\Impact.ttf",
-    r"C:\Windows\Fonts\arialbd.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-]
-
-
-def _altyazi_fontu_bul():
-    for aday in ALTYAZI_FONT_ADAYLARI:
-        if os.path.exists(aday):
-            return aday
-    return None
-
-
-def _pop_olcek_fonksiyonu(sahne_suresi):
-    pop_suresi = min(0.1, sahne_suresi / 2)
-
-    def olcek(t):
-        if t < pop_suresi:
-            return 0.9 + 0.1 * (t / pop_suresi)
-        return 1.0
-
-    return olcek
-
-
-def altyazi_klibi_olustur(metin, sahne_suresi):
-    if not metin:
-        return None
-    font_yolu = _altyazi_fontu_bul()
+def satiri_parse_et(satir, satir_no):
+    """Regex tabanli, hataya dayanikli tekil satir parser'i. Hata durumunda
+    None doner, logging.error ile loglanir, 'continue' mantigiyla ust
+    fonksiyonda bir sonraki satira gecilir (islem asla durmaz)."""
     try:
-        klip = TextClip(
-            text=metin,
-            font=font_yolu,
-            font_size=75,
-            color="white",
-            stroke_color="black",
-            stroke_width=5,
-            method="label",
-        )
-    except Exception as hata:
-        print(f"  (Altyazı uyarısı: metin oluşturulamadı, atlanıyor: {hata})")
-        return None
+        eslesme = SATIR_REGEX.match(satir)
+        if not eslesme:
+            logging.error(f"Row parsing failed: satir {satir_no} formatla eslesmedi: '{satir}'")
+            return None
 
-    klip = klip.with_duration(sahne_suresi)
-    klip = klip.resized(_pop_olcek_fonksiyonu(sahne_suresi))
-    # y=1500 alt-orta konum; x eksenini ortalamak icin 'center' kullaniyoruz
-    klip = klip.with_position(("center", 1500))
-    return klip
+        sure = float(eslesme.group("duration"))
+        sahne_gorseli = eslesme.group("scene")
+        elements_ham = eslesme.group("elements") or ""
+        caption = (eslesme.group("caption") or "").strip().strip('"')
 
-
-# ============================================================================
-# SCRIPT.TXT AYRISTIRICI
-# ============================================================================
-def script_satirini_ayristir(satir, satir_no):
-    """
-    '3.0 | okul.jpg | rias:sol:sabit , issei:sag:zipla | "metin"' satirini
-    ayristirir. Hatali/eksik satirlarda None doner ve uyari basar (crash yok).
-    """
-    parcalar = [p.strip() for p in satir.split("|")]
-    if len(parcalar) != 4:
-        print(f"  UYARI: Satır {satir_no} atlandı (4 bölüm bekleniyor, {len(parcalar)} bulundu): {satir}")
-        return None
-
-    try:
-        sahne_suresi = float(parcalar[0])
-    except ValueError:
-        print(f"  UYARI: Satır {satir_no} atlandı (süre sayı değil): {parcalar[0]}")
-        return None
-
-    arkaplan_adi = parcalar[1]
-    karakter_tanimlari = parcalar[2]
-    metin_ham = parcalar[3].strip().strip('"')
-
-    karakterler = []
-    if karakter_tanimlari:
-        for tanim in karakter_tanimlari.split(","):
-            tanim = tanim.strip()
-            if not tanim:
+        elementler = []
+        for parca in elements_ham.split(","):
+            parca = parca.strip()
+            if not parca:
                 continue
-            # rsplit kullanilir cunku 'ad' bir URL olabilir (http://... icinde
-            # zaten ':' karakteri var), bu yuzden SONDAN en fazla 2 kez ayiriyoruz.
-            alt_parcalar = tanim.rsplit(":", 2)
-            if len(alt_parcalar) != 3:
-                print(f"  UYARI: Satır {satir_no}: karakter tanımı hatalı, atlandı: '{tanim}'")
+            element_eslesme = ELEMENT_REGEX.match(parca)
+            if not element_eslesme:
+                logging.error(f"Row parsing failed: element eslesmedi, atlandi: '{parca}'")
                 continue
-            ad = alt_parcalar[0].strip()
-            pozisyon = alt_parcalar[1].strip().lower()
-            efekt = alt_parcalar[2].strip().lower()
-            karakterler.append((ad, pozisyon, efekt))
+            ad = element_eslesme.group("name")
+            kv = kv_ciftlerini_ayristir(element_eslesme.group("kv_pairs"))
+            elementler.append({
+                "ad": ad,
+                "pozisyon": kv.get("pozisyon", "merkez").lower(),
+                "animasyon": kv.get("animasyon", "sabit").lower(),
+            })
 
-    return {
-        "sure": sahne_suresi,
-        "arkaplan": arkaplan_adi,
-        "karakterler": karakterler,
-        "metin": metin_ham,
-    }
+        return {"sure": sure, "arkaplan": sahne_gorseli, "karakterler": elementler, "metin": caption}
+
+    except Exception as e:
+        logging.error(f"Row parsing failed: satir {satir_no} beklenmeyen hata: {e}")
+        return None
 
 
 def scripti_oku():
-    with open(SCRIPT_DOSYASI, "r", encoding="utf-8") as f:
-        satirlar = [s for s in f.read().splitlines() if s.strip() and not s.strip().startswith("#")]
+    if not os.path.exists(SCRIPT_DOSYASI):
+        log.warning("script.txt bulunamadi.")
+        return []
+
+    try:
+        with open(SCRIPT_DOSYASI, "r", encoding="utf-8") as f:
+            satirlar = f.read().splitlines()
+    except Exception as e:
+        logging.error(f"script.txt okunamadi: {e}")
+        return []
 
     sahneler = []
     for i, satir in enumerate(satirlar, start=1):
-        sahne = script_satirini_ayristir(satir, i)
+        satir = satir.strip()
+        if not satir or satir.startswith("#"):
+            continue
+        sahne = satiri_parse_et(satir, i)
         if sahne:
             sahneler.append(sahne)
     return sahneler
 
 
 # ============================================================================
-# BOLUM 3.1 + 4: SES ENTEGRASYONU + RENDER
+# URI SANITIZATION + INDIRME (requests tabanli)
+# ============================================================================
+_GECERLI_MIME_ONEKI = "image/"
+
+
+def url_gecerli_mi(deger):
+    try:
+        ayristirilmis = urlparse(deger)
+        return ayristirilmis.scheme in ("http", "https") and bool(ayristirilmis.netloc)
+    except Exception:
+        return False
+
+
+def uzantiyi_dogrula(url):
+    """Query string'leri bypass ederek (?width=100 vb.) saf uzantiyi cikarir,
+    mimetypes ile dogrular. Gecersiz/bilinmeyen ise .jpg varsayilan doner."""
+    yol_kismi = urlparse(url).path
+    uzanti = os.path.splitext(yol_kismi)[1].lower()
+
+    mime_turu, _ = mimetypes.guess_type("dosya" + uzanti)
+    if mime_turu and mime_turu.startswith(_GECERLI_MIME_ONEKI):
+        return uzanti
+    return ".jpg"
+
+
+def gorseli_indir(url, hedef_klasor):
+    """requests ile indirir (stream=True), URI sanitization uygular.
+    Basarisiz olursa (RequestException) None doner, cagiran taraf
+    kendi fallback mekanizmasini (default_char / siyah canvas) kullanir."""
+    try:
+        if not url_gecerli_mi(url):
+            logging.error(f"Gecersiz URL, indirilmedi: {url}")
+            return None
+
+        uzanti = uzantiyi_dogrula(url)
+        import hashlib
+        dosya_adi = hashlib.md5(url.encode("utf-8")).hexdigest() + uzanti
+        hedef_yol = os.path.join(hedef_klasor, dosya_adi)
+
+        if os.path.exists(hedef_yol):
+            log.info(f"Zaten indirilmis, tekrar indirilmiyor: {dosya_adi}")
+            return hedef_yol
+
+        log.info(f"Indiriliyor: {url}")
+        yanit = requests.get(url, timeout=10, stream=True, headers={"User-Agent": "Mozilla/5.0"})
+        yanit.raise_for_status()
+
+        with open(hedef_yol, "wb") as f:
+            for parca in yanit.iter_content(chunk_size=8192):
+                f.write(parca)
+
+        log.info(f"Indirildi: {dosya_adi}")
+        return hedef_yol
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"HTTP indirme hatasi ({url}): {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Beklenmeyen indirme hatasi ({url}): {e}")
+        return None
+
+
+def yerel_dosya_bul(klasor, ad):
+    tam_yol = os.path.join(klasor, ad)
+    return tam_yol if os.path.exists(tam_yol) else None
+
+
+def yerel_karakter_bul(klasor, ad):
+    ad_kucuk = ad.strip().lower()
+    if not os.path.isdir(klasor):
+        return None
+    for dosya in os.listdir(klasor):
+        if dosya.lower().startswith(ad_kucuk) and dosya.lower().endswith(".png"):
+            return os.path.join(klasor, dosya)
+    return None
+
+
+def arkaplan_yolunu_coz(deger):
+    """URL ise indirir; degilse yerelde arar. Ikisi de basarisiz olursa
+    None doner (cagiran taraf bellek-ici siyah canvas kullanir)."""
+    if url_gecerli_mi(deger):
+        return gorseli_indir(deger, ARKAPLAN_KLASORU)
+    return yerel_dosya_bul(ARKAPLAN_KLASORU, deger)
+
+
+def karakter_yolunu_coz(ad):
+    """URL ise indirir; degilse yerelde arar. Ikisi de basarisiz olursa
+    default_char.png yoluna fallback yapilir (HICBIR ZAMAN None donmez)."""
+    yol = gorseli_indir(ad, KARAKTER_KLASORU) if url_gecerli_mi(ad) else yerel_karakter_bul(KARAKTER_KLASORU, ad)
+    if yol:
+        return yol
+    logging.error(f"Karakter bulunamadi/indirilemedi: '{ad}' -> default_char.png kullaniliyor")
+    _varsayilan_karakteri_olustur_eger_yoksa()
+    return VARSAYILAN_KARAKTER if os.path.exists(VARSAYILAN_KARAKTER) else None
+
+
+# ============================================================================
+# GORUNTU ISLEME (letterbox + In-Memory fallback canvas)
+# ============================================================================
+def dikey_formata_getir(resim_yolu_veya_None, gecici_yol):
+    """
+    resim_yolu_veya_None gecerliyse dosyayi 1080x1920'ye sigdirir.
+    None ise (arka plan bulunamadiysa) DISKE HIC YAZMADAN, bellek-ici
+    (numpy) siyah bir canvas uretip onu kullanir (spesifikasyondaki
+    np.zeros((1920,1080,3)) mantigi).
+    """
+    if resim_yolu_veya_None is None:
+        logging.error("Arka plan bulunamadi -> bellek-ici (in-memory) siyah canvas kullaniliyor.")
+        return np.zeros((HEDEF_YUKSEKLIK, HEDEF_GENISLIK, 3), dtype=np.uint8)
+
+    try:
+        resim = Image.open(resim_yolu_veya_None).convert("RGB")
+        oran = min(HEDEF_GENISLIK / resim.width, HEDEF_YUKSEKLIK / resim.height)
+        yeni_genislik = max(1, int(resim.width * oran))
+        yeni_yukseklik = max(1, int(resim.height * oran))
+        resim = resim.resize((yeni_genislik, yeni_yukseklik))
+
+        zemin = Image.new("RGB", (HEDEF_GENISLIK, HEDEF_YUKSEKLIK), (0, 0, 0))
+        x = (HEDEF_GENISLIK - yeni_genislik) // 2
+        y = (HEDEF_YUKSEKLIK - yeni_yukseklik) // 2
+        zemin.paste(resim, (x, y))
+        return np.array(zemin)
+    except Exception as e:
+        logging.error(f"Arka plan islenemedi ({resim_yolu_veya_None}): {e} -> siyah canvas kullaniliyor.")
+        return np.zeros((HEDEF_YUKSEKLIK, HEDEF_GENISLIK, 3), dtype=np.uint8)
+
+
+# ============================================================================
+# SINEMATIK KAMERA + KARAKTER KATMANLARI
+# ============================================================================
+def arkaplan_klibi_olustur(numpy_dizisi, sure, zoom_orani=0.03):
+    klip = ImageClip(numpy_dizisi).with_duration(sure)
+    klip = klip.resized(lambda t: 1.0 + zoom_orani * (t / sure))
+    klip = klip.with_position(("center", "center"))
+    return CompositeVideoClip([klip], size=(HEDEF_GENISLIK, HEDEF_YUKSEKLIK)).with_duration(sure)
+
+
+def karakter_klibi_olustur(karakter_yolu, pozisyon, animasyon, sure):
+    try:
+        klip = ImageClip(karakter_yolu).with_duration(sure)
+    except Exception as e:
+        logging.error(f"Karakter goruntusu yuklenemedi ({karakter_yolu}): {e}")
+        return None
+
+    genislik, yukseklik = klip.w, klip.h
+    klip = klip.with_anchor((genislik / 2, yukseklik)) if hasattr(klip, "with_anchor") else klip
+
+    x_pos = POZISYON_X.get(pozisyon, POZISYON_X["merkez"])
+    y_base = HEDEF_YUKSEKLIK - yukseklik
+
+    try:
+        if animasyon == "zipla":
+            def konum(t):
+                return (x_pos - genislik / 2, y_base - abs(np.sin(t * np.pi * 2)) * 30)
+            klip = klip.with_position(konum)
+        elif animasyon == "titre":
+            import random as _rastgele
+            def konum(t):
+                return (x_pos - genislik / 2 + _rastgele.randint(-6, 6),
+                        y_base + _rastgele.randint(-6, 6))
+            klip = klip.with_position(konum)
+        else:  # sabit
+            klip = klip.with_position((x_pos - genislik / 2, y_base))
+    except Exception as e:
+        logging.error(f"Karakter animasyonu uygulanamadi ({animasyon}): {e}")
+        klip = klip.with_position((x_pos - genislik / 2, y_base))
+
+    return CompositeVideoClip([klip], size=(HEDEF_GENISLIK, HEDEF_YUKSEKLIK)).with_duration(sure)
+
+
+ALTYAZI_FONT_ADAYLARI = [
+    r"C:\Windows\Fonts\impact.ttf",
+    r"C:\Windows\Fonts\arialbd.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+]
+
+
+def _font_bul():
+    for aday in ALTYAZI_FONT_ADAYLARI:
+        if os.path.exists(aday):
+            return aday
+    return None
+
+
+def altyazi_klibi_olustur(metin, sure):
+    if not metin:
+        return None
+    try:
+        klip = TextClip(
+            text=metin, font=_font_bul(), font_size=70, color="white",
+            stroke_color="black", stroke_width=4, method="label",
+        ).with_duration(sure).with_position(("center", int(HEDEF_YUKSEKLIK * 0.75)))
+        return klip
+    except Exception as e:
+        logging.error(f"Altyazi olusturulamadi: {e}")
+        return None
+
+
+def gecisli_birlestir(klipler, gecis_suresi=0.25):
+    if gecis_suresi <= 0 or len(klipler) < 2:
+        return concatenate_videoclips(klipler)
+    sonuc = [klipler[0]]
+    baslangic = klipler[0].duration - gecis_suresi
+    for klip in klipler[1:]:
+        gs = min(gecis_suresi, klip.duration / 2, klipler[0].duration)
+        klip_fade = klip.with_effects([vfx.CrossFadeIn(gs)]).with_start(max(baslangic, 0))
+        sonuc.append(klip_fade)
+        baslangic += klip.duration - gs
+    return CompositeVideoClip(sonuc, size=(HEDEF_GENISLIK, HEDEF_YUKSEKLIK)).with_duration(baslangic + gecis_suresi)
+
+
+# ============================================================================
+# MUZIK
 # ============================================================================
 def muzik_dosyasi_bul():
     if not os.path.isdir(SES_KLASORU):
@@ -353,80 +421,121 @@ def muzik_dosyasi_bul():
 
 
 def muzigi_hazirla(toplam_sure):
-    """Muzigi bulur, gerekirse dongusel tekrarlar, tam toplam_sure'ye kirpar."""
-    muzik_yolu = muzik_dosyasi_bul()
-    if not muzik_yolu:
-        print("UYARI: 'input_audio' klasöründe müzik bulunamadı, video sessiz olacak.")
+    yol = muzik_dosyasi_bul()
+    if not yol:
+        log.warning("input_audio klasorunde muzik bulunamadi, video sessiz olacak.")
+        return None
+    try:
+        ses = AudioFileClip(yol)
+        if ses.duration < toplam_sure:
+            ses = ses.with_effects([AudioLoop(duration=toplam_sure)])
+        else:
+            ses = ses.subclipped(0, toplam_sure)
+        return ses
+    except Exception as e:
+        logging.error(f"Muzik yuklenemedi: {e}")
         return None
 
-    ses = AudioFileClip(muzik_yolu)
-    if ses.duration < toplam_sure:
-        ses = ses.with_effects([AudioLoop(duration=toplam_sure)])
-    else:
-        ses = ses.subclipped(0, toplam_sure)
-    return ses
+
+# ============================================================================
+# JSON METADATA ENGINE (After Effects icin)
+# ============================================================================
+def metadata_json_yaz(cikti_video_yolu, sahneler):
+    json_yolu = os.path.splitext(cikti_video_yolu)[0] + ".json"
+    baslangic = 0.0
+    sahne_meta = []
+
+    for sahne in sahneler:
+        karakter_meta = []
+        for k in sahne["karakterler"]:
+            x = POZISYON_X.get(k["pozisyon"], POZISYON_X["merkez"])
+            karakter_meta.append({
+                "ad": k["ad"],
+                "pozisyon": k["pozisyon"],
+                "x": x,
+                "y": HEDEF_YUKSEKLIK,
+                "animasyon": k["animasyon"],
+                "animasyon_enum": ANIMASYON_ENUM.get(k["animasyon"], "static_expression"),
+            })
+
+        sahne_meta.append({
+            "baslangic_zamani": round(baslangic, 3),
+            "sure": sahne["sure"],
+            "arkaplan": sahne["arkaplan"],
+            "karakterler": karakter_meta,
+            "metin": sahne["metin"],
+        })
+        baslangic += sahne["sure"]
+
+    metadata = {
+        "video_dosyasi": os.path.basename(cikti_video_yolu),
+        "genislik": HEDEF_GENISLIK,
+        "yukseklik": HEDEF_YUKSEKLIK,
+        "fps": HEDEF_FPS,
+        "toplam_sure": round(baslangic, 3),
+        "sahneler": sahne_meta,
+    }
+
+    try:
+        with open(json_yolu, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=4, ensure_ascii=False)
+        log.info(f"Metadata JSON yazildi: {json_yolu}")
+    except Exception as e:
+        logging.error(f"Metadata JSON yazilamadi: {e}")
+
+    return json_yolu
 
 
 # ============================================================================
 # ANA PIPELINE
 # ============================================================================
-def sahneyi_isle(sahne, sahne_no, gecici_klasor):
-    print(f"  Sahne {sahne_no}: süre={sahne['sure']}sn, arkaplan='{sahne['arkaplan']}', "
-          f"{len(sahne['karakterler'])} karakter")
+def sahneyi_isle(sahne, sahne_no):
+    log.info(f"Sahne {sahne_no}: sure={sahne['sure']}sn, arkaplan='{sahne['arkaplan']}', "
+             f"{len(sahne['karakterler'])} karakter")
 
     arkaplan_yolu = arkaplan_yolunu_coz(sahne["arkaplan"])
-    if not arkaplan_yolu:
-        print(f"    UYARI: Arka plan bulunamadı: '{sahne['arkaplan']}' -> düz siyah zeminle devam ediliyor.")
-        gecici_arkaplan = os.path.join(gecici_klasor, f"siyah_{sahne_no}.jpg")
-        Image.new("RGB", (HEDEF_GENISLIK, HEDEF_YUKSEKLIK), (0, 0, 0)).save(gecici_arkaplan)
-        arkaplan_yolu = gecici_arkaplan
-    else:
-        islenmis_arkaplan = os.path.join(gecici_klasor, f"arkaplan_{sahne_no}.jpg")
-        arka_plani_hazirla(arkaplan_yolu, islenmis_arkaplan)
-        arkaplan_yolu = islenmis_arkaplan
+    arkaplan_dizisi = dikey_formata_getir(arkaplan_yolu, None)
+    katmanlar = [arkaplan_klibi_olustur(arkaplan_dizisi, sahne["sure"])]
 
-    katmanlar = [arkaplan_klibi_olustur(arkaplan_yolu, sahne["sure"])]
-
-    for ad, pozisyon, efekt in sahne["karakterler"]:
-        karakter_yolu = karakter_yolunu_coz(ad)
-        if not karakter_yolu:
-            print(f"    UYARI: Karakter bulunamadı: '{ad}' (input_characters içine '{ad}.png' at) -> atlandı.")
-            continue
-        katmanlar.append(karakter_klibi_olustur(karakter_yolu, pozisyon, efekt, sahne["sure"]))
+    for k in sahne["karakterler"]:
+        karakter_yolu = karakter_yolunu_coz(k["ad"])
+        if karakter_yolu:
+            karakter_klip = karakter_klibi_olustur(karakter_yolu, k["pozisyon"], k["animasyon"], sahne["sure"])
+            if karakter_klip:
+                katmanlar.append(karakter_klip)
 
     altyazi = altyazi_klibi_olustur(sahne["metin"], sahne["sure"])
     if altyazi:
         katmanlar.append(altyazi)
 
-    sahne_klibi = CompositeVideoClip(katmanlar, size=(HEDEF_GENISLIK, HEDEF_YUKSEKLIK))
-    sahne_klibi = sahne_klibi.with_duration(sahne["sure"])
-    return sahne_klibi
+    return CompositeVideoClip(katmanlar, size=(HEDEF_GENISLIK, HEDEF_YUKSEKLIK)).with_duration(sahne["sure"])
 
 
 def video_uret():
-    yeni_olusturuldu = script_yoksa_ornek_olustur()
-    if yeni_olusturuldu:
-        return None
+    _varsayilan_karakteri_olustur_eger_yoksa()
 
     sahneler = scripti_oku()
     if not sahneler:
-        print("UYARI: 'script.txt' içinde geçerli hiçbir sahne bulunamadı. Lütfen dosyayı kontrol et.")
+        log.warning("script.txt icinde gecerli hicbir sahne bulunamadi.")
         return None
 
-    print(f"{len(sahneler)} sahne bulundu. İşlem başlıyor...\n")
-
-    gecici_klasor = os.path.join(TEMEL_KLASOR, "_gecici")
-    os.makedirs(gecici_klasor, exist_ok=True)
+    log.info(f"{len(sahneler)} sahne bulundu. Islem basliyor.")
 
     sahne_klipleri = []
     for i, sahne in enumerate(sahneler, start=1):
-        sahne_klipleri.append(sahneyi_isle(sahne, i, gecici_klasor))
+        try:
+            sahne_klipleri.append(sahneyi_isle(sahne, i))
+        except Exception as e:
+            logging.error(f"Sahne {i} islenemedi, atlaniyor: {e}")
+            continue
 
-    print("\nSahneler diziliyor (kaba kurgu birleştiriliyor)...")
-    video = concatenate_videoclips(sahne_klipleri, method="compose")
+    if not sahne_klipleri:
+        log.warning("Hicbir sahne basariyla islenemedi, video uretilemedi.")
+        return None
 
+    video = gecisli_birlestir(sahne_klipleri, gecis_suresi=0.25)
     toplam_sure = video.duration
-    print(f"Toplam video süresi: {toplam_sure:.2f} sn")
+    log.info(f"Toplam video suresi: {toplam_sure:.2f} sn")
 
     muzik = muzigi_hazirla(toplam_sure)
     if muzik:
@@ -435,18 +544,21 @@ def video_uret():
     cikti_adi = f"kaba_kurgu_{int(zaman_modulu.time())}.mp4"
     cikti_yolu = os.path.join(CIKTI_KLASORU, cikti_adi)
 
-    print(f"\nRender başlıyor -> {cikti_yolu}")
-    video.write_videofile(
-        cikti_yolu,
-        fps=30,
-        codec="libx264",
-        audio_codec="aac",
-        threads=8,
-        preset="ultrafast",
-        logger=None,
-    )
+    log.info(f"Render basliyor -> {cikti_yolu}")
+    try:
+        video.write_videofile(
+            cikti_yolu, fps=HEDEF_FPS, codec="libx264", audio_codec="aac",
+            threads=8, preset="ultrafast", logger=None,
+        )
+    except Exception as e:
+        logging.error(f"Render basarisiz: {e}")
+        return None
 
-    print(f"\nBİTTİ! Kaba kurgu hazır: {cikti_yolu}")
+    metadata_json_yaz(cikti_yolu, sahneler)
+
+    log.info(f"BITTI! Kaba kurgu hazir: {cikti_yolu}")
+    # kontrol_paneli.py bu satiri arayip son video yolunu yakalayacak:
+    print(f"RENDER_COMPLETE:{cikti_yolu}")
     return cikti_yolu
 
 

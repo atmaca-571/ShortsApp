@@ -141,7 +141,14 @@ def satiri_parse_et(satir, satir_no):
     try:
         eslesme = SATIR_REGEX.match(satir)
         if not eslesme:
-            logging.error(f"Row parsing failed: satir {satir_no} formatla eslesmedi: '{satir}'")
+            if "|" not in satir:
+                # Kullanici muhtemelen eski/yanlis formatta yaziyor
+                # (orn: 'sahne: link, sure: 4' gibi) -> ozel, anlasilir uyari
+                logging.error(
+                    "[HATA] Lutfen guncel 'sure | arka_plan | karakter' formatini kullanin!"
+                )
+            else:
+                logging.error(f"Row parsing failed: satir {satir_no} formatla eslesmedi: '{satir}'")
             return None
 
         sure = float(eslesme.group("duration"))

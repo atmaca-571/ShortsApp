@@ -43,6 +43,21 @@ AYARLAR_DOSYASI = os.path.join(BASE_DIR, "kontrol_paneli_ayarlar.json")
 RENK_BASARILI = "#4CAF50"
 RENK_HATALI = "#F44336"
 
+# --- Buton/alan renk matrisi ---
+RENK_KURGU_BG = "#673AB7"
+RENK_AE_BG = "#E53935"
+RENK_OYNAT_BG = "#1E88E5"
+RENK_KLASOR_BG = "#37474F"
+RENK_KAYDET_BG = "#2E7D32"
+RENK_BEYAZ = "#FFFFFF"
+
+RENK_SCRIPT_KUTUSU_BG = "#FAFAFA"
+RENK_SCRIPT_KUTUSU_FG = "#000000"
+
+RENK_LOG_BG = "#000000"
+RENK_LOG_FG = "#00FF00"
+RENK_LOG_HATA_FG = "#FF3333"
+
 
 def ayarlari_yukle():
     if os.path.exists(AYARLAR_DOSYASI):
@@ -133,10 +148,16 @@ class KontrolPaneli:
         tk.Label(ana, text="Canavar Asistan - Kontrol Paneli", font=("Segoe UI", 14, "bold")).pack(anchor="w")
 
         tk.Label(ana, text="script.txt icerigi:", font=("Segoe UI", 10)).pack(anchor="w", pady=(12, 2))
-        self.script_kutusu = tk.Text(ana, height=10, wrap="word", undo=True)
+        self.script_kutusu = tk.Text(
+            ana, height=10, wrap="word", undo=True,
+            bg=RENK_SCRIPT_KUTUSU_BG, fg=RENK_SCRIPT_KUTUSU_FG, insertbackground=RENK_SCRIPT_KUTUSU_FG
+        )
         self.script_kutusu.pack(fill="both", expand=True)
 
-        tk.Button(ana, text="Scripti Kaydet", command=self.scripti_kaydet).pack(anchor="e", pady=(6, 12))
+        tk.Button(
+            ana, text="Scripti Kaydet", command=self.scripti_kaydet,
+            bg=RENK_KAYDET_BG, fg=RENK_BEYAZ, activebackground=RENK_KAYDET_BG, activeforeground=RENK_BEYAZ
+        ).pack(anchor="e", pady=(6, 12))
 
         # --- Ana islem butonlari ---
         buton_cercevesi = tk.Frame(ana)
@@ -144,20 +165,25 @@ class KontrolPaneli:
 
         self.kurgu_butonu = tk.Button(
             buton_cercevesi, text="PYTHON KABA KURGUYU BASLAT",
-            command=self.kaba_kurguyu_baslat, font=("Segoe UI", 10, "bold"), height=2
+            command=self.kaba_kurguyu_baslat, font=("Segoe UI", 10, "bold"), height=2,
+            bg=RENK_KURGU_BG, fg=RENK_BEYAZ, activebackground=RENK_KURGU_BG, activeforeground=RENK_BEYAZ,
+            disabledforeground=RENK_BEYAZ
         )
         self.kurgu_butonu.pack(fill="x", pady=3)
 
         self.ae_butonu = tk.Button(
             buton_cercevesi, text="AFTER EFFECTS ASISTANINI ATESLE",
-            command=self.after_effects_baslat, font=("Segoe UI", 10, "bold"), height=2
+            command=self.after_effects_baslat, font=("Segoe UI", 10, "bold"), height=2,
+            bg=RENK_AE_BG, fg=RENK_BEYAZ, activebackground=RENK_AE_BG, activeforeground=RENK_BEYAZ
         )
         self.ae_butonu.pack(fill="x", pady=3)
 
         self.oynat_butonu = tk.Button(
             buton_cercevesi, text="SON VIDEOYU OYNAT",
             command=self.son_videoyu_oynat, font=("Segoe UI", 10, "bold"), height=2,
-            state="disabled"
+            state="disabled",
+            bg=RENK_OYNAT_BG, fg=RENK_BEYAZ, activebackground=RENK_OYNAT_BG, activeforeground=RENK_BEYAZ,
+            disabledforeground=RENK_BEYAZ
         )
         self.oynat_butonu.pack(fill="x", pady=3)
 
@@ -170,13 +196,17 @@ class KontrolPaneli:
         klasor_buton_satiri = tk.Frame(klasor_cercevesi)
         klasor_buton_satiri.pack(fill="x")
 
-        tk.Button(klasor_buton_satiri, text="Arka Planlar",
+        tk.Button(klasor_buton_satiri, text="Arka Planlar", bg=RENK_KLASOR_BG, fg=RENK_BEYAZ,
+                  activebackground=RENK_KLASOR_BG, activeforeground=RENK_BEYAZ,
                   command=lambda: klasoru_ac(ARKAPLAN_KLASORU)).pack(side="left", expand=True, fill="x", padx=2)
-        tk.Button(klasor_buton_satiri, text="Karakterler",
+        tk.Button(klasor_buton_satiri, text="Karakterler", bg=RENK_KLASOR_BG, fg=RENK_BEYAZ,
+                  activebackground=RENK_KLASOR_BG, activeforeground=RENK_BEYAZ,
                   command=lambda: klasoru_ac(KARAKTER_KLASORU)).pack(side="left", expand=True, fill="x", padx=2)
-        tk.Button(klasor_buton_satiri, text="Ses",
+        tk.Button(klasor_buton_satiri, text="Ses", bg=RENK_KLASOR_BG, fg=RENK_BEYAZ,
+                  activebackground=RENK_KLASOR_BG, activeforeground=RENK_BEYAZ,
                   command=lambda: klasoru_ac(SES_KLASORU)).pack(side="left", expand=True, fill="x", padx=2)
-        tk.Button(klasor_buton_satiri, text="Ciktilar",
+        tk.Button(klasor_buton_satiri, text="Ciktilar", bg=RENK_KLASOR_BG, fg=RENK_BEYAZ,
+                  activebackground=RENK_KLASOR_BG, activeforeground=RENK_BEYAZ,
                   command=lambda: klasoru_ac(OUTPUT_KLASORU)).pack(side="left", expand=True, fill="x", padx=2)
 
         tk.Button(
@@ -191,7 +221,10 @@ class KontrolPaneli:
 
         # --- Log alani ---
         tk.Label(ana, text="Islem Gunlugu:", font=("Segoe UI", 9)).pack(anchor="w")
-        self.log_kutusu = scrolledtext.ScrolledText(ana, height=10, wrap="word")
+        self.log_kutusu = scrolledtext.ScrolledText(
+            ana, height=10, wrap="word", bg=RENK_LOG_BG, fg=RENK_LOG_FG, insertbackground=RENK_LOG_FG
+        )
+        self.log_kutusu.tag_configure("hata_satiri", foreground=RENK_LOG_HATA_FG)
         self.log_kutusu.pack(fill="both", expand=True, pady=(2, 0))
         self.log_kutusu.configure(state="disabled")
 
@@ -230,7 +263,10 @@ class KontrolPaneli:
             while True:
                 mesaj = self._log_kuyrugu.get_nowait()
                 self.log_kutusu.configure(state="normal")
-                self.log_kutusu.insert("end", mesaj + "\n")
+                if "[HATA]" in mesaj.upper() or "HATA:" in mesaj.upper() or "ERROR" in mesaj.upper():
+                    self.log_kutusu.insert("end", mesaj + "\n", "hata_satiri")
+                else:
+                    self.log_kutusu.insert("end", mesaj + "\n")
                 self.log_kutusu.see("end")
                 self.log_kutusu.configure(state="disabled")
         except queue.Empty:

@@ -1,2 +1,2 @@
 @echo off
-python kontrol_paneli.py
+start "" pythonw kontrol_paneli.py

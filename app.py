@@ -22,6 +22,17 @@ import os
 import math
 import random
 import time as zaman_modulu
+import sys
+
+# Windows konsolunun eski kod sayfasi (cp1252 gibi) yuzunden Turkce karakterlerde
+# veya herhangi bir ozel karakterde UnicodeEncodeError almamak icin, stdout/stderr'i
+# acikca UTF-8'e zorluyoruz. Bu satirlar sorun cikarirsa sessizce yoksayilir.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 
 from moviepy import (
     ImageClip,
@@ -218,13 +229,13 @@ def script_satirini_ayristir(satir, satir_no):
     """
     parcalar = [p.strip() for p in satir.split("|")]
     if len(parcalar) != 4:
-        print(f"  ⚠️ Satır {satir_no} atlandı (4 bölüm bekleniyor, {len(parcalar)} bulundu): {satir}")
+        print(f"  UYARI: Satır {satir_no} atlandı (4 bölüm bekleniyor, {len(parcalar)} bulundu): {satir}")
         return None
 
     try:
         sahne_suresi = float(parcalar[0])
     except ValueError:
-        print(f"  ⚠️ Satır {satir_no} atlandı (süre sayı değil): {parcalar[0]}")
+        print(f"  UYARI: Satır {satir_no} atlandı (süre sayı değil): {parcalar[0]}")
         return None
 
     arkaplan_adi = parcalar[1]
@@ -239,7 +250,7 @@ def script_satirini_ayristir(satir, satir_no):
                 continue
             alt_parcalar = tanim.split(":")
             if len(alt_parcalar) != 3:
-                print(f"  ⚠️ Satır {satir_no}: karakter tanımı hatalı, atlandı: '{tanim}'")
+                print(f"  UYARI: Satır {satir_no}: karakter tanımı hatalı, atlandı: '{tanim}'")
                 continue
             ad, pozisyon, efekt = [p.strip().lower() for p in alt_parcalar]
             karakterler.append((ad, pozisyon, efekt))
@@ -280,7 +291,7 @@ def muzigi_hazirla(toplam_sure):
     """Muzigi bulur, gerekirse dongusel tekrarlar, tam toplam_sure'ye kirpar."""
     muzik_yolu = muzik_dosyasi_bul()
     if not muzik_yolu:
-        print("⚠️ 'input_audio' klasöründe müzik bulunamadı, video sessiz olacak.")
+        print("UYARI: 'input_audio' klasöründe müzik bulunamadı, video sessiz olacak.")
         return None
 
     ses = AudioFileClip(muzik_yolu)
@@ -300,7 +311,7 @@ def sahneyi_isle(sahne, sahne_no, gecici_klasor):
 
     arkaplan_yolu = arkaplan_dosyasi_bul(sahne["arkaplan"])
     if not arkaplan_yolu:
-        print(f"    ⚠️ Arka plan bulunamadı: '{sahne['arkaplan']}' -> düz siyah zeminle devam ediliyor.")
+        print(f"    UYARI: Arka plan bulunamadı: '{sahne['arkaplan']}' -> düz siyah zeminle devam ediliyor.")
         gecici_arkaplan = os.path.join(gecici_klasor, f"siyah_{sahne_no}.jpg")
         Image.new("RGB", (HEDEF_GENISLIK, HEDEF_YUKSEKLIK), (0, 0, 0)).save(gecici_arkaplan)
         arkaplan_yolu = gecici_arkaplan
@@ -314,7 +325,7 @@ def sahneyi_isle(sahne, sahne_no, gecici_klasor):
     for ad, pozisyon, efekt in sahne["karakterler"]:
         karakter_yolu = karakter_dosyasi_bul(ad)
         if not karakter_yolu:
-            print(f"    ⚠️ Karakter bulunamadı: '{ad}' (input_characters içine '{ad}.png' at) -> atlandı.")
+            print(f"    UYARI: Karakter bulunamadı: '{ad}' (input_characters içine '{ad}.png' at) -> atlandı.")
             continue
         katmanlar.append(karakter_klibi_olustur(karakter_yolu, pozisyon, efekt, sahne["sure"]))
 
@@ -334,7 +345,7 @@ def video_uret():
 
     sahneler = scripti_oku()
     if not sahneler:
-        print("⚠️ 'script.txt' içinde geçerli hiçbir sahne bulunamadı. Lütfen dosyayı kontrol et.")
+        print("UYARI: 'script.txt' içinde geçerli hiçbir sahne bulunamadı. Lütfen dosyayı kontrol et.")
         return None
 
     print(f"{len(sahneler)} sahne bulundu. İşlem başlıyor...\n")
@@ -370,7 +381,7 @@ def video_uret():
         logger=None,
     )
 
-    print(f"\n✅ BİTTİ! Kaba kurgu hazır: {cikti_yolu}")
+    print(f"\nBİTTİ! Kaba kurgu hazır: {cikti_yolu}")
     return cikti_yolu
 
 

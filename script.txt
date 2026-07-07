@@ -1,2 +1,1 @@
-sahne: https://raw.githubusercontent.com/atmaca-571/ShortsApp/main/output_shorts/.gitkeep, sure: 4
-https://raw.githubusercontent.com/atmaca-571/ShortsApp/main/output_shorts/.gitkeep: pozisyon=sol, animasyon=zıplama
+4 | https://raw.githubusercontent.com/atmaca-571/ShortsApp/main/output_shorts/.gitkeep | https://raw.githubusercontent.com/atmaca-571/ShortsApp/main/output_shorts/.gitkeep:pozisyon=sol animasyon=zipla

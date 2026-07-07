@@ -118,6 +118,23 @@ def dosyayi_oynat(yol):
         messagebox.showerror("Oynatilamadi", f"Video oynatilamadi:\n{e}")
 
 
+def gecmis_videoyu_ac_os_startfile(yol):
+    """
+    'URETILEN VIDEOLAR' listesinden secilen ESKI bir videoyu, isletim
+    sisteminin varsayilan medya oynaticisinda ACIKCA os.startfile() ile
+    (Windows'ta) asenkron olarak acar.
+    """
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(yol)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", yol])
+        else:
+            subprocess.Popen(["xdg-open", yol])
+    except Exception as e:
+        messagebox.showerror("Oynatilamadi", f"Secili video oynatilamadi:\n{e}")
+
+
 # ============================================================================
 # ANA PANEL
 # ============================================================================
@@ -136,6 +153,7 @@ class KontrolPaneli:
 
         self._arayuzu_kur()
         self._scripti_yukle()
+        self.video_listesini_yenile()
         self._log_kuyrugunu_dinle()
 
     # ------------------------------------------------------------
@@ -219,14 +237,71 @@ class KontrolPaneli:
         )
         self.durum_etiketi.pack(fill="x", pady=(6, 6))
 
-        # --- Log alani ---
-        tk.Label(ana, text="Islem Gunlugu:", font=("Segoe UI", 9)).pack(anchor="w")
+        # --- Log alani + Uretilen Videolar (yan yana, PanedWindow ile) ---
+        alt_bolme = tk.PanedWindow(ana, orient="horizontal", sashrelief="raised", sashwidth=6)
+        alt_bolme.pack(fill="both", expand=True, pady=(6, 0))
+
+        log_cercevesi = tk.Frame(alt_bolme)
+        tk.Label(log_cercevesi, text="Islem Gunlugu:", font=("Segoe UI", 9)).pack(anchor="w")
         self.log_kutusu = scrolledtext.ScrolledText(
-            ana, height=10, wrap="word", bg=RENK_LOG_BG, fg=RENK_LOG_FG, insertbackground=RENK_LOG_FG
+            log_cercevesi, height=10, wrap="word", bg=RENK_LOG_BG, fg=RENK_LOG_FG, insertbackground=RENK_LOG_FG
         )
         self.log_kutusu.tag_configure("hata_satiri", foreground=RENK_LOG_HATA_FG)
         self.log_kutusu.pack(fill="both", expand=True, pady=(2, 0))
         self.log_kutusu.configure(state="disabled")
+        alt_bolme.add(log_cercevesi, stretch="always", width=420)
+
+        video_cercevesi = tk.Frame(alt_bolme)
+        ust_satir = tk.Frame(video_cercevesi)
+        ust_satir.pack(fill="x")
+        tk.Label(ust_satir, text="URETILEN VIDEOLAR:", font=("Segoe UI", 9, "bold")).pack(side="left")
+        tk.Button(ust_satir, text="Yenile", font=("Segoe UI", 8),
+                  command=self.video_listesini_yenile).pack(side="right")
+
+        self.video_listesi = tk.Listbox(video_cercevesi, activestyle="dotbox")
+        self.video_listesi.pack(fill="both", expand=True, pady=(2, 4))
+        self.video_listesi.bind("<Double-Button-1>", lambda e: self.secili_videoyu_oynat())
+
+        tk.Button(
+            video_cercevesi, text="SECILI VIDEOYU OYNAT", command=self.secili_videoyu_oynat,
+            bg=RENK_OYNAT_BG, fg=RENK_BEYAZ, activebackground=RENK_OYNAT_BG, activeforeground=RENK_BEYAZ
+        ).pack(fill="x")
+        alt_bolme.add(video_cercevesi, stretch="always", width=260)
+
+        self._video_yollari = []  # listedeki her satirin tam dosya yolu (index eslesir)
+
+    # ------------------------------------------------------------
+    # URETILEN VIDEOLAR LISTESI
+    # ------------------------------------------------------------
+    def video_listesini_yenile(self):
+        try:
+            os.makedirs(OUTPUT_KLASORU, exist_ok=True)
+            dosyalar = [
+                os.path.join(OUTPUT_KLASORU, f) for f in os.listdir(OUTPUT_KLASORU)
+                if f.lower().endswith(".mp4")
+            ]
+            # guncelden eskiye dogru sirala (degistirme zamanina gore)
+            dosyalar.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+
+            self._video_yollari = dosyalar
+            self.video_listesi.delete(0, "end")
+            for yol in dosyalar:
+                self.video_listesi.insert("end", os.path.basename(yol))
+        except Exception as e:
+            self._log_kuyrugu.put(f"Video listesi yenilenemedi: {e}")
+
+    def secili_videoyu_oynat(self):
+        secim = self.video_listesi.curselection()
+        if not secim:
+            messagebox.showinfo("Secim yok", "Once listeden bir video sec.")
+            return
+        yol = self._video_yollari[secim[0]]
+        if os.path.exists(yol):
+            gecmis_videoyu_ac_os_startfile(yol)
+            self._log_kuyrugu.put(f"Secili video oynatiliyor: {yol}")
+        else:
+            messagebox.showwarning("Bulunamadi", "Bu video dosyasi artik mevcut degil.")
+            self.video_listesini_yenile()
 
     # ------------------------------------------------------------
     # SCRIPT.TXT
@@ -343,6 +418,7 @@ class KontrolPaneli:
             self._log_kuyrugu.put("Islem basariyla tamamlandi.")
             self._banner_guncelle("RENDER SUCCESSFUL", RENK_BASARILI)
             self.pencere.after(0, lambda: self.oynat_butonu.config(state="normal"))
+            self.pencere.after(0, self.video_listesini_yenile)
         else:
             self._log_kuyrugu.put("Islem basarisiz oldu veya video dosyasi bulunamadi.")
             self._banner_guncelle("RENDER FAILED", RENK_HATALI)

@@ -341,9 +341,23 @@ def arkaplan_klibi_olustur(numpy_dizisi, sure, zoom_orani=0.03):
     return CompositeVideoClip([klip], size=(HEDEF_GENISLIK, HEDEF_YUKSEKLIK)).with_duration(sure)
 
 
+def karakter_gorselini_rgba_yukle(karakter_yolu):
+    """
+    Karakter gorselini PIL ile acip ACIKCA RGBA'ya cevirir, sonra numpy
+    dizisi olarak dondurur. Bu, indirilen bazi PNG'lerin (ozellikle
+    palet-modlu / P-mode transparency kullananlarin) MoviePy tarafindan
+    dogrudan dosya yolundan yuklenince alfa/seffaflik bilgisini
+    KAYBETMESINI engeller (aksi halde karakterin arkasinda siyah/beyaz
+    dikdortgen kutular olusur).
+    """
+    img = Image.open(karakter_yolu).convert("RGBA")
+    return np.array(img)
+
+
 def karakter_klibi_olustur(karakter_yolu, pozisyon, animasyon, sure):
     try:
-        klip = ImageClip(karakter_yolu).with_duration(sure)
+        karakter_dizisi = karakter_gorselini_rgba_yukle(karakter_yolu)
+        klip = ImageClip(karakter_dizisi).with_duration(sure)
     except Exception as e:
         logging.error(f"Karakter goruntusu yuklenemedi ({karakter_yolu}): {e}")
         return None

@@ -19,8 +19,9 @@ import json
 import queue
 import threading
 import subprocess
+from datetime import datetime
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext
+from tkinter import filedialog, messagebox, scrolledtext, simpledialog
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -93,6 +94,22 @@ class LatestRenderState:
 # ============================================================================
 # OS SEVIYESI YARDIMCILAR
 # ============================================================================
+def dosya_konumunu_goster(yol):
+    """
+    Sadece klasoru acmakla kalmaz; Windows Gezgini'nde ilgili dosyayi
+    SECILI (highlighted) halde gosterir. macOS'ta Finder'da ayni sekilde
+    dosyayi secili gosterir. Linux'ta universal bir 'sec' mekanizmasi
+    olmadigi icin klasoru acmakla yetinir.
+    """
+    tam_yol = os.path.normpath(os.path.abspath(yol))
+    if sys.platform.startswith("win"):
+        subprocess.Popen(f'explorer /select,"{tam_yol}"')
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", "-R", tam_yol])
+    else:
+        subprocess.Popen(["xdg-open", os.path.dirname(tam_yol)])
+
+
 def klasoru_ac(yol):
     try:
         os.makedirs(yol, exist_ok=True)
@@ -258,50 +275,243 @@ class KontrolPaneli:
         tk.Button(ust_satir, text="Yenile", font=("Segoe UI", 8),
                   command=self.video_listesini_yenile).pack(side="right")
 
-        self.video_listesi = tk.Listbox(video_cercevesi, activestyle="dotbox")
+        self.video_listesi = tk.Listbox(video_cercevesi, activestyle="dotbox", font=("Consolas", 9))
         self.video_listesi.pack(fill="both", expand=True, pady=(2, 4))
         self.video_listesi.bind("<Double-Button-1>", lambda e: self.secili_videoyu_oynat())
+        self.video_listesi.bind("<Button-3>", self._sag_tik_menusunu_goster)
+
+        # --- Sag tik (context) menusu ---
+        self._sag_tik_menusu = tk.Menu(self.pencere, tearoff=0)
+        self._sag_tik_menusu.add_command(label="Oynat", command=self.secili_videoyu_oynat)
+        self._sag_tik_menusu.add_command(label="Guvenli Yeniden Adlandir", command=self.secili_videoyu_yeniden_adlandir)
+        self._sag_tik_menusu.add_command(label="Dosya Konumunu Goster", command=self.secili_video_konumunu_goster)
+        self._sag_tik_menusu.add_separator()
+        self._sag_tik_menusu.add_command(label="Sil", command=self.secili_videoyu_sil)
 
         tk.Button(
-            video_cercevesi, text="SECILI VIDEOYU OYNAT", command=self.secili_videoyu_oynat,
+            video_cercevesi, text="OYNAT", command=self.secili_videoyu_oynat,
             bg=RENK_OYNAT_BG, fg=RENK_BEYAZ, activebackground=RENK_OYNAT_BG, activeforeground=RENK_BEYAZ
-        ).pack(fill="x")
-        alt_bolme.add(video_cercevesi, stretch="always", width=260)
+        ).pack(fill="x", pady=1)
+
+        kontrol_satiri = tk.Frame(video_cercevesi)
+        kontrol_satiri.pack(fill="x", pady=1)
+        tk.Button(kontrol_satiri, text="Yeniden Adlandir", font=("Segoe UI", 8),
+                  command=self.secili_videoyu_yeniden_adlandir).pack(side="left", expand=True, fill="x", padx=1)
+        tk.Button(kontrol_satiri, text="Konumu Goster", font=("Segoe UI", 8),
+                  command=self.secili_video_konumunu_goster).pack(side="left", expand=True, fill="x", padx=1)
+
+        tk.Button(
+            video_cercevesi, text="SIL", font=("Segoe UI", 8),
+            bg=RENK_HATALI, fg=RENK_BEYAZ, activebackground=RENK_HATALI, activeforeground=RENK_BEYAZ,
+            command=self.secili_videoyu_sil
+        ).pack(fill="x", pady=1)
+
+        alt_bolme.add(video_cercevesi, stretch="always", width=280)
 
         self._video_yollari = []  # listedeki her satirin tam dosya yolu (index eslesir)
+        self._video_taraniyor = False
+        self._video_sonuc_kuyrugu = queue.Queue()
+        self._video_kuyrugunu_dinle()
 
     # ------------------------------------------------------------
-    # URETILEN VIDEOLAR LISTESI
+    # URETILEN VIDEOLAR LISTESI (Metadata-Driven, arka plan thread'i ile)
     # ------------------------------------------------------------
     def video_listesini_yenile(self):
+        """Dosya taramasini arka plan thread'inde yapar, UI donmaz."""
+        if self._video_taraniyor:
+            return
+        self._video_taraniyor = True
+        threading.Thread(target=self._video_tarama_arka_plan, daemon=True).start()
+
+    def _video_tarama_arka_plan(self):
         try:
             os.makedirs(OUTPUT_KLASORU, exist_ok=True)
-            dosyalar = [
-                os.path.join(OUTPUT_KLASORU, f) for f in os.listdir(OUTPUT_KLASORU)
-                if f.lower().endswith(".mp4")
-            ]
-            # guncelden eskiye dogru sirala (degistirme zamanina gore)
-            dosyalar.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+            kayitlar = []
+            for f in os.listdir(OUTPUT_KLASORU):
+                if not f.lower().endswith(".mp4"):
+                    continue
+                tam_yol = os.path.join(OUTPUT_KLASORU, f)
+                try:
+                    zaman_damgasi = os.path.getmtime(tam_yol)
+                except OSError:
+                    continue
+                kayitlar.append((tam_yol, f, zaman_damgasi))
 
-            self._video_yollari = dosyalar
-            self.video_listesi.delete(0, "end")
-            for yol in dosyalar:
-                self.video_listesi.insert("end", os.path.basename(yol))
+            # guncelden eskiye dogru sirala
+            kayitlar.sort(key=lambda k: k[2], reverse=True)
+
+            # NOT: Arka plan thread'inden dogrudan self.pencere.after(...) cagirmak
+            # guvenilir degildir (Tkinter'in ana thread disi cagrilarda tutarsiz
+            # davranabilmesi nedeniyle) - bu yuzden log kuyrugunda kullandigimiz
+            # AYNI kanitlanmis pattern'i (queue.Queue + ana thread'de polling)
+            # burada da kullaniyoruz.
+            self._video_sonuc_kuyrugu.put(kayitlar)
         except Exception as e:
-            self._log_kuyrugu.put(f"Video listesi yenilenemedi: {e}")
+            self._log_kuyrugu.put(f"Video listesi taranamadi: {e}")
+            self._video_taraniyor = False
 
-    def secili_videoyu_oynat(self):
+    def _video_kuyrugunu_dinle(self):
+        try:
+            while True:
+                kayitlar = self._video_sonuc_kuyrugu.get_nowait()
+                self._video_listesini_guncelle(kayitlar)
+        except queue.Empty:
+            pass
+        finally:
+            self.pencere.after(100, self._video_kuyrugunu_dinle)
+
+    def _video_listesini_guncelle(self, kayitlar):
+        try:
+            self._video_yollari = [k[0] for k in kayitlar]
+            self.video_listesi.delete(0, "end")
+            for tam_yol, dosya_adi, zaman_damgasi in kayitlar:
+                tarih_metni = datetime.fromtimestamp(zaman_damgasi).strftime("%d.%m.%Y - %H:%M")
+                self.video_listesi.insert("end", f"[{tarih_metni}] | {dosya_adi}")
+        except Exception as e:
+            self._log_kuyrugu.put(f"Video listesi guncellenemedi: {e}")
+        finally:
+            self._video_taraniyor = False
+
+    def _secili_video_yolunu_al(self):
         secim = self.video_listesi.curselection()
         if not secim:
             messagebox.showinfo("Secim yok", "Once listeden bir video sec.")
-            return
-        yol = self._video_yollari[secim[0]]
-        if os.path.exists(yol):
-            gecmis_videoyu_ac_os_startfile(yol)
-            self._log_kuyrugu.put(f"Secili video oynatiliyor: {yol}")
-        else:
-            messagebox.showwarning("Bulunamadi", "Bu video dosyasi artik mevcut degil.")
+            return None
+        indeks = secim[0]
+        if indeks >= len(self._video_yollari):
+            messagebox.showwarning("Gecersiz secim", "Liste guncel degil, yenileniyor.")
             self.video_listesini_yenile()
+            return None
+        return self._video_yollari[indeks]
+
+    def _sag_tik_menusunu_goster(self, event):
+        try:
+            tiklanan_indeks = self.video_listesi.nearest(event.y)
+            if tiklanan_indeks >= 0:
+                self.video_listesi.selection_clear(0, "end")
+                self.video_listesi.selection_set(tiklanan_indeks)
+                self.video_listesi.activate(tiklanan_indeks)
+            self._sag_tik_menusu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self._sag_tik_menusu.grab_release()
+
+    def secili_videoyu_oynat(self):
+        yol = self._secili_video_yolunu_al()
+        if not yol:
+            return
+        if os.path.exists(yol):
+            try:
+                gecmis_videoyu_ac_os_startfile(yol)
+                self._log_kuyrugu.put(f"Video oynatiliyor: {yol}")
+            except Exception as e:
+                messagebox.showerror("Oynatilamadi", f"Video oynatilamadi:\n{e}")
+        else:
+            messagebox.showwarning("Bulunamadi", "Bu video dosyasi artik mevcut degil (silinmis veya tasinmis olabilir).")
+            self.video_listesini_yenile()
+
+    def secili_videoyu_yeniden_adlandir(self):
+        yol = self._secili_video_yolunu_al()
+        if not yol:
+            return
+        if not os.path.exists(yol):
+            messagebox.showwarning("Bulunamadi", "Dosya artik mevcut degil.")
+            self.video_listesini_yenile()
+            return
+
+        eski_ad = os.path.basename(yol)
+        eski_govde = os.path.splitext(eski_ad)[0]
+
+        yeni_govde = simpledialog.askstring(
+            "Yeniden Adlandir", "Yeni dosya adi (uzanti otomatik korunur):",
+            initialvalue=eski_govde, parent=self.pencere
+        )
+        if not yeni_govde or not yeni_govde.strip():
+            return  # kullanici iptal etti veya bos birakti
+
+        yeni_govde = yeni_govde.strip()
+        # .mp4 uzantisini KESINLIKLE koru; kullanici yanlislikla farkli
+        # bir uzanti yazsa bile onu temizleyip .mp4 ekliyoruz.
+        yeni_govde = os.path.splitext(yeni_govde)[0]
+        yeni_ad = yeni_govde + ".mp4"
+        yeni_yol = os.path.join(OUTPUT_KLASORU, yeni_ad)
+
+        if os.path.abspath(yeni_yol) == os.path.abspath(yol):
+            return  # isim degismedi
+
+        if os.path.exists(yeni_yol):
+            messagebox.showerror(
+                "Ayni isimde dosya var",
+                f"'{yeni_ad}' zaten mevcut. Uzerine yazilmasini engellemek icin "
+                "farkli bir isim sec."
+            )
+            return
+
+        try:
+            os.rename(yol, yeni_yol)
+            self._log_kuyrugu.put(f"Yeniden adlandirildi: {eski_ad} -> {yeni_ad}")
+
+            # Bu video 'son uretilen video' ise, Singleton kaydini da guncelle
+            if self.render_durumu.latest_output_path == yol:
+                self.render_durumu.latest_output_path = yeni_yol
+
+            self.video_listesini_yenile()
+        except PermissionError:
+            messagebox.showerror(
+                "Dosya kullanimda",
+                "Bu dosya su anda baska bir program tarafindan kullaniliyor "
+                "(orn. bir medya oynaticida acik). Once o programi kapatip tekrar dene."
+            )
+        except OSError as e:
+            messagebox.showerror("Yeniden adlandirilamadi", f"Bir hata olustu:\n{e}")
+
+    def secili_videoyu_sil(self):
+        yol = self._secili_video_yolunu_al()
+        if not yol:
+            return
+        if not os.path.exists(yol):
+            messagebox.showwarning("Bulunamadi", "Dosya zaten mevcut degil.")
+            self.video_listesini_yenile()
+            return
+
+        onay = messagebox.askyesno(
+            "Silmeyi Onayla",
+            f"'{os.path.basename(yol)}' KALICI OLARAK silinecek.\nBu islem geri alinamaz. Emin misin?"
+        )
+        if not onay:
+            return
+
+        try:
+            os.remove(yol)
+            self._log_kuyrugu.put(f"Silindi: {os.path.basename(yol)}")
+
+            if self.render_durumu.latest_output_path == yol:
+                self.render_durumu.latest_output_path = None
+                self.pencere.after(0, lambda: self.oynat_butonu.config(state="disabled"))
+
+            self.video_listesini_yenile()
+        except PermissionError:
+            messagebox.showerror(
+                "Dosya kullanimda",
+                "Bu dosya su anda baska bir program tarafindan kullaniliyor "
+                "(orn. bir medya oynaticida acik) ve silinemedi. Once o programi kapat."
+            )
+        except OSError as e:
+            messagebox.showerror("Silinemedi", f"Dosya silinirken bir hata olustu:\n{e}")
+
+    def secili_video_konumunu_goster(self):
+        yol = self._secili_video_yolunu_al()
+        if not yol:
+            return
+        if not os.path.exists(yol):
+            messagebox.showwarning("Bulunamadi", "Dosya artik mevcut degil.")
+            self.video_listesini_yenile()
+            return
+
+        try:
+            dosya_konumunu_goster(yol)
+            self._log_kuyrugu.put(f"Dosya konumu gosteriliyor: {yol}")
+        except Exception as e:
+            messagebox.showerror("Gosterilemedi", f"Dosya konumu gosterilemedi:\n{e}")
 
     # ------------------------------------------------------------
     # SCRIPT.TXT

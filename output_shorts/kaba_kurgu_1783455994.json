@@ -1,0 +1,105 @@
+{
+    "video_dosyasi": "kaba_kurgu_1783455994.mp4",
+    "genislik": 1080,
+    "yukseklik": 1920,
+    "fps": 30,
+    "toplam_sure": 14.5,
+    "sahneler": [
+        {
+            "baslangic_zamani": 0.0,
+            "sure": 3.0,
+            "arkaplan": "ev.jpg",
+            "karakterler": [
+                {
+                    "ad": "rias",
+                    "pozisyon": "merkez",
+                    "x": 540,
+                    "y": 1920,
+                    "animasyon": "sabit",
+                    "animasyon_enum": "static_expression"
+                }
+            ],
+            "metin": "Bu ev... tanidik geliyor."
+        },
+        {
+            "baslangic_zamani": 3.0,
+            "sure": 3.0,
+            "arkaplan": "ev.jpg",
+            "karakterler": [
+                {
+                    "ad": "akeno",
+                    "pozisyon": "sol",
+                    "x": 216,
+                    "y": 1920,
+                    "animasyon": "yuru_soldan_saga",
+                    "animasyon_enum": "static_expression"
+                }
+            ],
+            "metin": "Birisi yaklasiyor."
+        },
+        {
+            "baslangic_zamani": 6.0,
+            "sure": 2.5,
+            "arkaplan": "ev.jpg",
+            "karakterler": [
+                {
+                    "ad": "asia",
+                    "pozisyon": "sag",
+                    "x": 864,
+                    "y": 1920,
+                    "animasyon": "titre",
+                    "animasyon_enum": "wiggle_expression"
+                }
+            ],
+            "metin": "Ne oluyor?!"
+        },
+        {
+            "baslangic_zamani": 8.5,
+            "sure": 3.0,
+            "arkaplan": "ev.jpg",
+            "karakterler": [
+                {
+                    "ad": "rias",
+                    "pozisyon": "sol",
+                    "x": 216,
+                    "y": 1920,
+                    "animasyon": "zipla",
+                    "animasyon_enum": "bounce_expression"
+                },
+                {
+                    "ad": "akeno",
+                    "pozisyon": "sag",
+                    "x": 864,
+                    "y": 1920,
+                    "animasyon": "titre",
+                    "animasyon_enum": "wiggle_expression"
+                }
+            ],
+            "metin": "Bu bir tokat miydi?!"
+        },
+        {
+            "baslangic_zamani": 11.5,
+            "sure": 3.0,
+            "arkaplan": "ev.jpg",
+            "karakterler": [
+                {
+                    "ad": "yasaka",
+                    "pozisyon": "merkez",
+                    "x": 540,
+                    "y": 1920,
+                    "animasyon": "yuru_sagdan_sola",
+                    "animasyon_enum": "static_expression"
+                },
+                {
+                    "ad": "ravel",
+                    "pozisyon": "sol",
+                    "x": 216,
+                    "y": 1920,
+                    "animasyon": "sabit",
+                    "animasyon_enum": "static_expression"
+                }
+            ],
+            "metin": "Kimse fark etmedi mi?"
+        }
+    ]
+}

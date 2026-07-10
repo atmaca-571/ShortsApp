@@ -1,0 +1,73 @@
+{
+    "video_dosyasi": "kaba_kurgu_1783450786.mp4",
+    "genislik": 1080,
+    "yukseklik": 1920,
+    "fps": 30,
+    "toplam_sure": 17.0,
+    "sahneler": [
+        {
+            "baslangic_zamani": 0.0,
+            "sure": 3.5,
+            "arkaplan": "https://i.imgur.com/k6lPqN0.png",
+            "karakterler": [
+                {
+                    "ad": "https://i.imgur.com/Wb0M59y.png",
+                    "pozisyon": "orta",
+                    "x": 540,
+                    "y": 1920,
+                    "animasyon": "sabit",
+                    "animasyon_enum": "static_expression"
+                }
+            ],
+            "metin": ""
+        },
+        {
+            "baslangic_zamani": 3.5,
+            "sure": 4.0,
+            "arkaplan": "https://i.imgur.com/k6lPqN0.png",
+            "karakterler": [
+                {
+                    "ad": "https://i.imgur.com/H1tW4zB.png",
+                    "pozisyon": "sol",
+                    "x": 216,
+                    "y": 1920,
+                    "animasyon": "yavas_belir",
+                    "animasyon_enum": "static_expression"
+                }
+            ],
+            "metin": ""
+        },
+        {
+            "baslangic_zamani": 7.5,
+            "sure": 5.5,
+            "arkaplan": "https://i.imgur.com/k6lPqN0.png",
+            "karakterler": [
+                {
+                    "ad": "https://i.imgur.com/pZqN99K.png",
+                    "pozisyon": "orta",
+                    "x": 540,
+                    "y": 1920,
+                    "animasyon": "zipla",
+                    "animasyon_enum": "bounce_expression"
+                }
+            ],
+            "metin": ""
+        },
+        {
+            "baslangic_zamani": 13.0,
+            "sure": 4.0,
+            "arkaplan": "https://i.imgur.com/k6lPqN0.png",
+            "karakterler": [
+                {
+                    "ad": "https://i.imgur.com/Wb0M59y.png",
+                    "pozisyon": "sag",
+                    "x": 864,
+                    "y": 1920,
+                    "animasyon": "sabit",
+                    "animasyon_enum": "static_expression"
+                }
+            ],
+            "metin": ""
+        }
+    ]
+}

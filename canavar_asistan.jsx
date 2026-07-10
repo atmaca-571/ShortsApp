@@ -35,6 +35,8 @@ DUZELTMELER (bu surumde):
     var secilenScriptDosyasi = null;
     var secilenArkaplanKlasoru = null;
     var secilenKarakterKlasoru = null;
+    var secilenSesDosyasi = null; // opsiyonel arka plan muzigi/sesi
+    var secilenVideoKlasoru = null; // opsiyonel: gercek video klipleri
 
     // ============================================================
     // YARDIMCI: HATA YONETIMI
@@ -44,6 +46,17 @@ DUZELTMELER (bu surumde):
             $.writeln("HATA: " + mesaj);
         } catch (e) {
             // konsol bile yoksa sessizce gec, uygulamayi asla cokertme
+        }
+    }
+
+    function bilgiBildir(mesaj) {
+        // Bu, GERCEK bir hata degil, sadece bilgilendirme icin. hataBildir()
+        // her seyin basina "HATA:" yazdigi icin (ve bu kafa karistirdigi icin)
+        // bilgi mesajlari icin ayri, notr bir fonksiyon kullaniyoruz.
+        try {
+            $.writeln("BILGI: " + mesaj);
+        } catch (e) {
+            // konsol bile yoksa sessizce gec
         }
     }
 
@@ -145,7 +158,20 @@ DUZELTMELER (bu surumde):
                 return null;
             }
 
-            var arkaplanAdi = parcalar[1];
+            var arkaplanHam = parcalar[1];
+            var arkaplanAdi = arkaplanHam;
+            var arkaplanHareketi = "zoom"; // varsayilan: eski Ken Burns yakinlasma davranisi
+            var sahneGecisi = "oto"; // varsayilan: otomatik yumusak gecis (crossfade)
+            if (arkaplanHam.indexOf(":") !== -1) {
+                var arkaplanParcalari = arkaplanHam.split(":");
+                arkaplanAdi = arkaplanParcalari[0];
+                arkaplanHareketi = arkaplanParcalari[1].replace(/^\s+|\s+$/g, "").toLowerCase();
+                // 3. (opsiyonel) alan: sahne gecis tipi -> "oto" (varsayilan, yumusak)
+                // veya "kes" (hard cut, gecis efekti YOK)
+                if (arkaplanParcalari.length >= 3) {
+                    sahneGecisi = arkaplanParcalari[2].replace(/^\s+|\s+$/g, "").toLowerCase();
+                }
+            }
             var karakterTanimlari = parcalar[2];
             var metinHam = parcalar[3].replace(/^"+|"+$/g, "");
 
@@ -156,19 +182,27 @@ DUZELTMELER (bu surumde):
                     var tanim = tanimlar[k].replace(/^\s+|\s+$/g, "");
                     if (tanim === "") continue;
                     var altParcalar = tanim.split(":");
-                    if (altParcalar.length !== 3) {
+                    // Geriye uyumlu: 3 alan (ad:pozisyon:animasyon) HALA calisir.
+                    // YENI: 5 alan (ad:pozisyon:animasyon:giris:cikis) - karakterin
+                    // sahne icinde NASIL belirip NASIL kaybolacagini kontrol eder.
+                    if (altParcalar.length !== 3 && altParcalar.length !== 5) {
                         hataBildir("Satir " + satirNo + ": karakter tanimi hatali, atlandi: " + tanim);
                         continue;
                     }
                     karakterler.push({
                         ad: altParcalar[0].replace(/^\s+|\s+$/g, "").toLowerCase(),
                         pozisyon: altParcalar[1].replace(/^\s+|\s+$/g, "").toLowerCase(),
-                        efekt: altParcalar[2].replace(/^\s+|\s+$/g, "").toLowerCase()
+                        efekt: altParcalar[2].replace(/^\s+|\s+$/g, "").toLowerCase(),
+                        giris: altParcalar.length === 5 ? altParcalar[3].replace(/^\s+|\s+$/g, "").toLowerCase() : "yok",
+                        cikis: altParcalar.length === 5 ? altParcalar[4].replace(/^\s+|\s+$/g, "").toLowerCase() : "yok"
                     });
                 }
             }
 
-            return { sure: sure, arkaplan: arkaplanAdi, karakterler: karakterler, metin: metinHam };
+            return {
+                sure: sure, arkaplan: arkaplanAdi, arkaplanHareketi: arkaplanHareketi,
+                sahneGecisi: sahneGecisi, karakterler: karakterler, metin: metinHam
+            };
         }, "Satir " + satirNo + " ayristirilamadi", null);
     }
 
@@ -215,20 +249,37 @@ DUZELTMELER (bu surumde):
         }, "Dosya import edilemedi (" + (dosya ? dosya.fsName : "bilinmiyor") + ")", null);
     }
 
+    function dosyaVideoMu(dosyaAdi) {
+        var uzanti = dosyaAdi.toLowerCase();
+        return (uzanti.indexOf(".mp4") !== -1 || uzanti.indexOf(".mov") !== -1 ||
+                uzanti.indexOf(".avi") !== -1 || uzanti.indexOf(".webm") !== -1 ||
+                uzanti.indexOf(".m4v") !== -1);
+    }
+
     // ============================================================
-    // BOLUM 2: ARKA PLAN KATMANI (orantili cover + zoom + wiggle)
+    // BOLUM 2: ARKA PLAN KATMANI (orantili cover + zoom + wiggle, VEYA
+    // gercek video klibi ise sabit sigdirma - video kendi hareketini
+    // zaten icinde tasir, ustune kamera efekti eklenmez)
     // ============================================================
     function arkaplanKatmaniEkle(comp, sahne, baslangicZamani) {
         return guvenliCagir(function () {
             var katman = null;
+            var buVideoMu = dosyaVideoMu(sahne.arkaplan);
 
+            // Once arka plan (gorsel) klasorunde ara, bulunamazsa VIDEO
+            // klasorunde ara (kullanici video klip secmis olabilir)
+            var dosya = null;
             if (secilenArkaplanKlasoru) {
-                var dosya = dosyaBul(secilenArkaplanKlasoru, sahne.arkaplan);
-                if (dosya) {
-                    var oge = footageImportEt(dosya);
-                    if (oge) {
-                        katman = comp.layers.add(oge);
-                    }
+                dosya = dosyaBul(secilenArkaplanKlasoru, sahne.arkaplan);
+            }
+            if (!dosya && secilenVideoKlasoru) {
+                dosya = dosyaBul(secilenVideoKlasoru, sahne.arkaplan);
+            }
+
+            if (dosya) {
+                var oge = footageImportEt(dosya);
+                if (oge) {
+                    katman = comp.layers.add(oge);
                 }
             }
 
@@ -239,6 +290,71 @@ DUZELTMELER (bu surumde):
 
             katman.startTime = baslangicZamani;
             katman.outPoint = baslangicZamani + sahne.sure;
+
+            if (buVideoMu) {
+                // ============================================================
+                // GERCEK VIDEO KLIBI: kendi hareketi/sesi zaten var, ustune
+                // Ken Burns zoom veya wiggle EKLENMEZ - sadece orana uygun
+                // sigdirilir (statik, tek seferlik olcekleme).
+                // ============================================================
+                guvenliCagir(function () {
+                    var kaynakGenislik = katman.source.width;
+                    var kaynakYukseklik = katman.source.height;
+                    var olcekOrani = Math.max(COMP_GENISLIK / kaynakGenislik, COMP_YUKSEKLIK / kaynakYukseklik);
+                    katman.property("Transform").property("Scale").setValue([olcekOrani * 100, olcekOrani * 100]);
+                    katman.property("Transform").property("Position").setValue([COMP_GENISLIK / 2, COMP_YUKSEKLIK / 2]);
+                }, "Video sigdirma hatasi", null);
+                return katman;
+            }
+
+            var kaydirmaModuMu = (sahne.arkaplanHareketi === "kaydir_sagdan_sola" ||
+                                    sahne.arkaplanHareketi === "kaydir_soldan_saga");
+
+            if (kaydirmaModuMu) {
+                // ============================================================
+                // KAYAN ARKA PLAN (orn: trenden gecen manzara). Resim, YUKSEKLIGE
+                // TAM OTURACAK sekilde olceklenir (boylece genislik buyuk kalir,
+                // kaydirmaya yer acilir), sonra Position.x zamanla degisir.
+                // ============================================================
+                guvenliCagir(function () {
+                    var kaynakGenislik = katman.source.width;
+                    var kaynakYukseklik = katman.source.height;
+                    var olcekOrani = COMP_YUKSEKLIK / kaynakYukseklik;
+                    var olcekYuzde = olcekOrani * 100;
+                    katman.property("Transform").property("Scale").setValue([olcekYuzde, olcekYuzde]);
+
+                    var olceklenmisGenislik = kaynakGenislik * olcekOrani;
+                    var maksimumKaydirma = olceklenmisGenislik - COMP_GENISLIK;
+
+                    if (maksimumKaydirma <= 0) {
+                        hataBildir(
+                            "Arka plan '" + sahne.arkaplan + "' kaydirma icin yeterince genis DEGIL " +
+                            "(olceklenince genislik=" + Math.round(olceklenmisGenislik) + "px, en az " +
+                            COMP_GENISLIK + "px+ olmali). Sabit birakiliyor."
+                        );
+                        katman.property("Transform").property("Position").setValue([COMP_GENISLIK / 2, COMP_YUKSEKLIK / 2]);
+                        return;
+                    }
+
+                    var solUcPozisyon = olceklenmisGenislik / 2;
+                    var sagUcPozisyon = COMP_GENISLIK - (olceklenmisGenislik / 2);
+                    var posProp = katman.property("Transform").property("Position");
+
+                    if (sahne.arkaplanHareketi === "kaydir_sagdan_sola") {
+                        posProp.setValueAtTime(0, [solUcPozisyon, COMP_YUKSEKLIK / 2]);
+                        posProp.setValueAtTime(sahne.sure, [sagUcPozisyon, COMP_YUKSEKLIK / 2]);
+                    } else {
+                        posProp.setValueAtTime(0, [sagUcPozisyon, COMP_YUKSEKLIK / 2]);
+                        posProp.setValueAtTime(sahne.sure, [solUcPozisyon, COMP_YUKSEKLIK / 2]);
+                    }
+                    // NOT: Kasitli olarak easyEase UYGULANMIYOR - sabit hizli, tren
+                    // benzeri duz bir kayma icin varsayilan LINEAR interpolasyon
+                    // (AE'nin varsayilani) daha dogru sonuc verir.
+                }, "Kayan arka plan (scroll) hatasi", null);
+                // Kaydirma modunda wiggle expression EKLENMEZ - eklenirse Position
+                // keyframe'lerinin uzerine yazip kaydirmayi bozar.
+                return katman;
+            }
 
             guvenliCagir(function () {
                 var kaynakGenislik = katman.source.width;
@@ -340,6 +456,42 @@ DUZELTMELER (bu surumde):
                 guvenliCagir(function () {
                     katman.property("Transform").property("Position").expression = "wiggle(15, 30);";
                 }, "Titre expression hatasi (" + karakterTanimi.ad + ")", null);
+            } else if (efekt === "yuru_sagdan_sola" || efekt === "yuru_soldan_saga") {
+                // ============================================================
+                // YURUME: yatay hareket (keyframe, SABIT HIZLI = linear) +
+                // ustune BINEN adim sekme hissi (expression ile keyframe
+                // degerinin USTUNE dikey bobbing EKLENIR, degerin yerine
+                // GECMEZ). Boylece hem sahneyi gercekten kat ediyor hem de
+                // 2D yuruyus animasyonu gibi hafifce sekiyor.
+                // ============================================================
+                guvenliCagir(function () {
+                    var posProp = katman.property("Transform").property("Position");
+                    var tabanY = y_base;
+                    var solUc = -genislik + 10;
+                    var sagUc = COMP_GENISLIK - 10;
+
+                    var baslangicX, bitisX;
+                    if (efekt === "yuru_sagdan_sola") {
+                        baslangicX = sagUc;
+                        bitisX = solUc;
+                    } else {
+                        baslangicX = solUc;
+                        bitisX = sagUc;
+                    }
+
+                    posProp.setValueAtTime(0, [baslangicX, tabanY]);
+                    posProp.setValueAtTime(sahneSuresi, [bitisX, tabanY]);
+                    // NOT: Kasitli olarak easyEase UYGULANMIYOR - sabit hizli
+                    // (LINEAR) yuruyus, tren kaydirmasindaki mantikla ayni.
+
+                    // Adim sekme hissi: expression 'value' (o anki KEYFRAME
+                    // degeri) uzerine kucuk bir sinus dalgasi EKLER - keyframe
+                    // hareketini BOZMAZ, sadece uzerine "adim atma" hissi biner.
+                    posProp.expression =
+                        "var adimYuksekligi = 10;\n" +
+                        "var adimHizi = 8;\n" +
+                        "value + [0, -Math.abs(Math.sin(time * adimHizi)) * adimYuksekligi];";
+                }, "Yurume efekti uygulanamadi (" + karakterTanimi.ad + ")", null);
             } else {
                 guvenliCagir(function () {
                     katman.property("Transform").property("Scale").expression =
@@ -347,6 +499,27 @@ DUZELTMELER (bu surumde):
                         "var s = olcekTabani + Math.sin(time * 3) * 1;\n[s, s];";
                 }, "Sabit/nefes expression hatasi (" + karakterTanimi.ad + ")", null);
             }
+
+            // ============================================================
+            // KARAKTERIN GIRIS/CIKIS EFEKTI (Opacity - Position'dan BAGIMSIZ
+            // bir property oldugu icin yukaridaki hareket efektleriyle
+            // (zipla/titre/yuru/sabit) CAKISMAZ, hepsiyle birlikte calisir).
+            // "yok" (varsayilan) = eskisi gibi aninda belirir/kaybolur.
+            // "solma" = opacity ile yumusakca belirir/kaybolur.
+            // ============================================================
+            guvenliCagir(function () {
+                var girisSuresi = Math.min(0.4, sahneSuresi / 3);
+                var opacityProp = katman.property("Transform").property("Opacity");
+
+                if (karakterTanimi.giris === "solma") {
+                    opacityProp.setValueAtTime(0, 0);
+                    opacityProp.setValueAtTime(girisSuresi, 100);
+                }
+                if (karakterTanimi.cikis === "solma") {
+                    opacityProp.setValueAtTime(sahneSuresi - girisSuresi, 100);
+                    opacityProp.setValueAtTime(sahneSuresi, 0);
+                }
+            }, "Karakter giris/cikis efekti uygulanamadi (" + karakterTanimi.ad + ")", null);
 
             return katman;
         }, "Karakter katmani genel hatasi (" + (karakterTanimi ? karakterTanimi.ad : "?") + ")", null);
@@ -405,6 +578,96 @@ DUZELTMELER (bu surumde):
     // ============================================================
     // AKILLI KOMPOZISYON ISIMLENDIRME (eskilerin ustune binmez)
     // ============================================================
+    // ============================================================
+    // SES/MUZIK EKLEME (opsiyonel) - suresi kisa kalirsa otomatik dongulenir
+    // ============================================================
+    function sesiKompozisyonaEkle(comp, sesDosyasi, toplamSure) {
+        return guvenliCagir(function () {
+            if (!sesDosyasi) {
+                bilgiBildir("Ses dosyasi secilmedi, video sessiz olacak.");
+                return null;
+            }
+
+            var sesOgesi = footageImportEt(sesDosyasi);
+            if (!sesOgesi) {
+                hataBildir("Ses dosyasi import edilemedi: " + sesDosyasi.fsName);
+                return null;
+            }
+
+            var sesSuresi = sesOgesi.duration;
+            if (!sesSuresi || sesSuresi <= 0) {
+                hataBildir("Ses dosyasinin suresi okunamadi, video sessiz olacak.");
+                return null;
+            }
+
+            var eklenenKatmanlar = [];
+            var kalanSure = toplamSure;
+            var baslangic = 0;
+
+            // Ses, toplam video suresinden KISAYSA, ucu uca ekleyerek DONGULE
+            while (kalanSure > 0) {
+                var buSeferSure = Math.min(sesSuresi, kalanSure);
+                var sesKatmani = comp.layers.add(sesOgesi);
+                sesKatmani.startTime = baslangic;
+                sesKatmani.outPoint = baslangic + buSeferSure;
+                guvenliCagir(function () { sesKatmani.label = 14; }, "Ses katmani label rengi ayarlanamadi", null); // Camgobegi
+                eklenenKatmanlar.push(sesKatmani);
+
+                baslangic += buSeferSure;
+                kalanSure -= buSeferSure;
+            }
+
+            bilgiBildir("Ses eklendi (" + eklenenKatmanlar.length + " parca, toplam " + toplamSure.toFixed(1) + "sn kapsandi).");
+            return eklenenKatmanlar;
+        }, "Ses ekleme genel hatasi", null);
+    }
+
+    // ============================================================
+    // RENDER QUEUE HAZIRLAMA (otomatik render TETIKLENMEZ - guvenlik icin)
+    // ============================================================
+    function renderKuyruguHazirla(comp) {
+        return guvenliCagir(function () {
+            var kuyrukOgesi = app.project.renderQueue.items.add(comp);
+
+            guvenliCagir(function () {
+                var ciktiModulu = kuyrukOgesi.outputModule(1);
+                var projeKlasoru = app.project.file ? app.project.file.parent : Folder.desktop;
+                var ciktiDosyasi = new File(projeKlasoru.fsName + "/" + comp.name + ".mov");
+                ciktiModulu.file = ciktiDosyasi;
+
+                // Varsayilan 'Lossless' sablonu DEVASA dosyalar uretir (GB'larca).
+                // Daha kucuk/paylasilabilir bir cikti icin H.264 benzeri bir
+                // sablon uygulamayi DENIYORUZ - AE surumune gore bu sablon
+                // olmayabilir, o zaman sessizce eski (Lossless) ayarda kalir.
+                var kucukSablonDenemeleri = ["H.264", "H.264 - Match Render Settings - 15 Mbps", "Web-Ready (H.264)"];
+                var sablonBulundu = false;
+                for (var si = 0; si < kucukSablonDenemeleri.length; si++) {
+                    try {
+                        ciktiModulu.applyTemplate(kucukSablonDenemeleri[si]);
+                        sablonBulundu = true;
+                        bilgiBildir("Kucuk boyutlu cikti sablonu uygulandi: " + kucukSablonDenemeleri[si]);
+                        break;
+                    } catch (e) {
+                        // bu sablon bu AE surumunde yok, bir sonrakini dene
+                    }
+                }
+
+                bilgiBildir("Render Queue hazirlandi. Cikti: " + ciktiDosyasi.fsName);
+                if (!sablonBulundu) {
+                    hataBildir(
+                        "NOT: Kucuk-boyut sablonu bulunamadi, varsayilan (muhtemelen 'Lossless', " +
+                        "COK BUYUK dosya) ayarda kaldi. Dosya boyutunu kucultmek istersen: " +
+                        "Render Queue panelinde 'Output Module' yazisina tikla, format olarak " +
+                        "'H.264' veya benzeri sikistirilmis bir secenek sec (varsa)."
+                    );
+                }
+                bilgiBildir("Format/kaliteyi kontrol et, sonra 'Render' tusuna SEN bas.");
+            }, "Cikti modulu ayarlanamadi (Render Queue'da elle ayarlaman gerekebilir)", null);
+
+            return kuyrukOgesi;
+        }, "Render Queue'ya eklenemedi", null);
+    }
+
     function benzersizKompozisyonAdiUret() {
         return guvenliCagir(function () {
             var maxVersiyon = 0;
@@ -464,21 +727,82 @@ DUZELTMELER (bu surumde):
                 var sahne = sahneler[s];
                 if (!sahne) continue;
 
-                arkaplanKatmaniEkle(comp, sahne, baslangicZamani);
+                // ================================================================
+                // HER SAHNE KENDI ALT-KOMPOZISYONUNA (pre-comp) ALINIYOR.
+                // Bu, AE'nin standart profesyonel calisma yontemidir:
+                //   - Bir sahneye cift tiklayip icine girebilirsin, orada Puppet
+                //     Tool / Roto Brush / ek efektler uygulayabilirsin, DIGER
+                //     SAHNELERI HIC ETKILEMEZ.
+                //   - Sahne icindeki katman zamanlamalari (0 -> sahne.sure)
+                //     HEP YEREL kalir, master kompozisyondaki gercek zamanlamayi
+                //     dert etmene gerek kalmaz.
+                // ================================================================
+                var sahneCompAdi = kompozisyonAdi + "_Sahne_" + (s + 1);
+                var sahneComp = guvenliCagir(function () {
+                    return app.project.items.addComp(sahneCompAdi, COMP_GENISLIK, COMP_YUKSEKLIK, 1, sahne.sure, COMP_FPS);
+                }, "Sahne " + (s + 1) + " icin pre-comp olusturulamadi", null);
 
-                for (var k = 0; k < sahne.karakterler.length; k++) {
-                    karakterKatmaniEkle(comp, sahne.karakterler[k], sahne.sure, baslangicZamani);
+                if (!sahneComp) continue;
+
+                // Sahne icindeki katmanlar SIFIRDAN (yerel 0 zamanindan) baslar
+                var arkaplanKatman = arkaplanKatmaniEkle(sahneComp, sahne, 0);
+                if (arkaplanKatman) {
+                    guvenliCagir(function () { arkaplanKatman.label = 9; }, "Arka plan label rengi ayarlanamadi", null); // Yesil
                 }
 
-                altyaziKatmaniEkle(comp, sahne.metin, sahne.sure, baslangicZamani);
+                for (var k = 0; k < sahne.karakterler.length; k++) {
+                    var karakterKatman = karakterKatmaniEkle(sahneComp, sahne.karakterler[k], sahne.sure, 0);
+                    if (karakterKatman) {
+                        guvenliCagir(function () { karakterKatman.label = 4; }, "Karakter label rengi ayarlanamadi", null); // Pembe
+                    }
+                }
+
+                var altyaziKatman = altyaziKatmaniEkle(sahneComp, sahne.metin, sahne.sure, 0);
+                if (altyaziKatman) {
+                    guvenliCagir(function () { altyaziKatman.label = 2; }, "Altyazi label rengi ayarlanamadi", null); // Sari
+                }
+
+                // Sahne pre-comp'unu, master kompozisyona DOGRU SIRAYLA (global
+                // zamanlamayla) tek bir katman olarak yerlestiriyoruz.
+                var sahneKatmani = comp.layers.add(sahneComp);
+                sahneKatmani.startTime = baslangicZamani;
+                sahneKatmani.outPoint = baslangicZamani + sahne.sure;
+                guvenliCagir(function () { sahneKatmani.label = 10; }, "Sahne katmani label rengi ayarlanamadi", null); // Mor
+
+                // ============================================================
+                // SAHNELER ARASI YUMUSAK GECIS (crossfade): ilk sahne haric
+                // hepsi opacity ile ICERI GIRER, son sahne haric hepsi
+                // opacity ile DISARI CIKAR. "1 saniye durup effect ile
+                // ciksin" tarzi istekler icin.
+                // ============================================================
+                guvenliCagir(function () {
+                    if (sahne.sahneGecisi === "kes") {
+                        return; // KES: hicbir gecis efekti uygulanmaz, direkt kesme
+                    }
+                    var gecisSuresi = Math.min(0.4, sahne.sure / 2);
+                    var opacityProp = sahneKatmani.property("Transform").property("Opacity");
+
+                    if (s > 0) { // ilk sahne degilse -> ICERI GIR (fade-in)
+                        opacityProp.setValueAtTime(0, 0);
+                        opacityProp.setValueAtTime(gecisSuresi, 100);
+                    }
+                    if (s < sahneler.length - 1) { // son sahne degilse -> DISARI CIK (fade-out)
+                        opacityProp.setValueAtTime(sahne.sure - gecisSuresi, 100);
+                        opacityProp.setValueAtTime(sahne.sure, 0);
+                    }
+                }, "Sahne gecis (crossfade) efekti uygulanamadi", null);
 
                 baslangicZamani += sahne.sure;
             }
 
             guvenliCagir(function () { comp.openInViewer(); }, "Kompozisyon viewer'da acilamadi", null);
 
+            sesiKompozisyonaEkle(comp, secilenSesDosyasi, toplamSure);
+            renderKuyruguHazirla(comp);
+
             alert("Animasyon oluşturuldu: '" + kompozisyonAdi + "'\nToplam süre: " + toplamSure.toFixed(2) +
-                  " saniye.\nUyarılar için Window > Console kontrol edilebilir.");
+                  " saniye.\nRender Queue hazırlandı - format/kalite ayarlarını kontrol edip 'Render' tuşuna sen bas.\n" +
+                  "Uyarılar için Window > Console kontrol edilebilir.");
         } catch (genelHata) {
             alert("Beklenmeyen bir hata oluştu: " + genelHata.toString());
             hataBildir("GENEL HATA (animasyonuBaslat): " + genelHata.toString());
@@ -550,6 +874,38 @@ DUZELTMELER (bu surumde):
                         karakterEtiketi.text = klasor.name;
                     }
                 }, "Karakter klasoru secilemedi", null);
+            };
+
+            var sesGrubu = panel.add("group");
+            sesGrubu.orientation = "row";
+            var sesButonu = sesGrubu.add("button", undefined, "Ses/Müzik Dosyası Seç (opsiyonel)");
+            var sesEtiketi = sesGrubu.add("statictext", undefined, "(seçilmedi - sessiz olur)");
+            sesEtiketi.characters = 24;
+
+            sesButonu.onClick = function () {
+                guvenliCagir(function () {
+                    var dosya = File.openDialog("Arka plan muzigi/sesini sec", "*.mp3;*.wav;*.m4a;*.aac");
+                    if (dosya) {
+                        secilenSesDosyasi = dosya;
+                        sesEtiketi.text = dosya.name;
+                    }
+                }, "Ses dosyasi secilemedi", null);
+            };
+
+            var videoGrubu = panel.add("group");
+            videoGrubu.orientation = "row";
+            var videoButonu = videoGrubu.add("button", undefined, "Video Klasörü Seç (opsiyonel)");
+            var videoEtiketi = videoGrubu.add("statictext", undefined, "(seçilmedi)");
+            videoEtiketi.characters = 24;
+
+            videoButonu.onClick = function () {
+                guvenliCagir(function () {
+                    var klasor = Folder.selectDialog("Gercek video kliplerinin bulundugu klasoru sec");
+                    if (klasor) {
+                        secilenVideoKlasoru = klasor.fsName;
+                        videoEtiketi.text = klasor.name;
+                    }
+                }, "Video klasoru secilemedi", null);
             };
 
             panel.add("panel", undefined, "").minimumSize = [0, 1];

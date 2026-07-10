@@ -1,0 +1,4 @@
+3.5 | https://i.imgur.com/k6lPqN0.png | https://i.imgur.com/Wb0M59y.png:pozisyon=orta
+4.0 | https://i.imgur.com/k6lPqN0.png | https://i.imgur.com/H1tW4zB.png:pozisyon=sol animasyon=yavas_belir
+5.5 | https://i.imgur.com/k6lPqN0.png | https://i.imgur.com/pZqN99K.png:pozisyon=orta animasyon=zipla
+4.0 | https://i.imgur.com/k6lPqN0.png | https://i.imgur.com/Wb0M59y.png:pozisyon=sag

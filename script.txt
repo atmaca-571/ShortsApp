@@ -1,5 +1,42 @@
-3.0 | ev.jpg | rias:pozisyon=merkez animasyon=sabit | "Bu ev... tanidik geliyor."
-3.0 | ev.jpg | akeno:pozisyon=sol animasyon=yuru_soldan_saga | "Birisi yaklasiyor."
-2.5 | ev.jpg | asia:pozisyon=sag animasyon=titre | "Ne oluyor?!"
-3.0 | ev.jpg | rias:pozisyon=sol animasyon=zipla , akeno:pozisyon=sag animasyon=titre | "Bu bir tokat miydi?!"
-3.0 | ev.jpg | yasaka:pozisyon=merkez animasyon=yuru_sagdan_sola , ravel:pozisyon=sol animasyon=sabit | "Kimse fark etmedi mi?"
+# Canavar Asistan - Rias test v3
+# sureler saniye
+
+[sahne]
+sure=1.1
+arkaplan=beyaz
+karakter=rias_poz_1.png|merkez|sabit
+
+[sahne]
+sure=1.1
+arkaplan=beyaz
+karakter=rias_poz_5.png|merkez|sabit
+
+[sahne]
+sure=0.55
+arkaplan=beyaz
+karakter=rias_poz_4.png|merkez|sabit
+
+[sahne]
+sure=1.4
+arkaplan=beyaz
+karakter=rias_poz_6.png|merkez|yuru_soldan_saga
+
+[sahne]
+sure=0.7
+arkaplan=beyaz
+karakter=rias_poz_7.png|merkez|sabit
+
+[sahne]
+sure=0.7
+arkaplan=beyaz
+karakter=rias_poz_8.png|merkez|sabit
+
+[sahne]
+sure=0.7
+arkaplan=beyaz
+karakter=rias_poz_9.png|merkez|sabit
+
+[sahne]
+sure=0.7
+arkaplan=beyaz
+karakter=rias_poz_1.png|merkez|sabit

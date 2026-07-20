@@ -1,0 +1,22 @@
+=== PIXAI — AKI (elle cizilmis / Steve-kanal) ===
+DangoheartAnimation Steve-channel amateur hand-drawn YouTube short,
+uneven wobbly black ink outlines, FLAT colors only NO gradients NO glow,
+simple big white sclera eyes tiny dark pupils, dash mouth, soft blush,
+wonky beginner proportions, long dark burgundy hair flat clumps small ahoge,
+grey school vest white shirt red ribbon, short red skirt white stripe,
+white knee socks brown loafers, handmade flipbook look, plain beige background
+
+Negative: ai polish, glossy, hyper detail, bloom, speech bubble, photoreal, 3d
+
+=== PIXAI — REN (elle cizilmis / Steve-kanal) ===
+same Dangoheart Steve amateur hand-drawn style,
+uneven shaky black ink, flat colors only,
+messy BLACK hair flat clumps, simple white sclera eyes tiny dark pupils, dash mouth,
+black turtleneck, long BLACK trench coat, grey scarf, hands in pockets,
+black pants brown boots, beginner indie flipbook look, plain beige background
+
+Negative: ai polish, glossy, brown hair, navy coat, hyper detail, bloom, speech bubble, photoreal, 3d
+
+Kanallar: DangoheartAnimation / Ganzouomo / SeanWayStudio
+Ref: assets\aki_karakter_ref.png + assets\ren_karakter_ref.png
+Yapistir paketi: karakterler\PIXAI_YAPISTIR_10SN.txt

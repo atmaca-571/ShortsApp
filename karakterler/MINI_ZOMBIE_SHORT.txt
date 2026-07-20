@@ -1,0 +1,32 @@
+=== MINI SHORT — ZOMBIE KIZ (ilk deneme) ===
+Süre: ~15–20 sn | Panel: 6
+Karakter: mint ten, siyah saç ahoge, mor yorgun göz, eklemli (ZOMBIE_KIZ)
+Kıyafet: senaryoya göre değişir — şimdi: 01 hoodie (casual)
+
+--- HİKÂYE (kısa) ---
+
+Gece. Basit flat sokak / boş okul bahçesi.
+Zombie kız (hoodie) tek başına duruyor, yere bakıyor.
+Uzaktan ayak sesi — başını yavaş kaldırır.
+Birinin silüeti geçer; duraksar.
+Kız ellerini hoodie cebinde sıkar.
+Çok kısa konuşma (balon YOK, sadece ağız):
+Kız: "...sen misin?"
+Cevap yok. Silüet gider.
+Son kare: kız yine yere bakar, yalnız.
+
+--- İNGİLİZCE 6 PANEL ---
+
+1) full body mint zombie-doll girl in oversized black hoodie, dark shorts, standing alone night flat street, looking down, tired purple eyes, ball joints visible, handmade flat style
+2) same girl, head slowly lifts, eyes wider slightly, hearing footsteps
+3) distant silhouette of a person walking past, girl watching, mouth closed
+4) girl mouth OPEN small oval saying something quiet, hands in hoodie pocket
+5) silhouette walks away, girl mouth CLOSED, blush or shy look
+6) final: girl alone again looking down, soft lonely beat, no speech bubbles
+
+--- STİL ---
+flat matte, thin black outlines, cream/dark simple bg, NOT glossy AI, match ZOMBIE_KIZ refs
+
+--- NEREYE ---
+Tensor.Art: TENSOR_ZOMBIE_KIZ.txt dosyasına bak
+kimlik_kalip.png + stil_ref.png yükle → 6 TEK KARE ayrı ayrı üret → PNG indir

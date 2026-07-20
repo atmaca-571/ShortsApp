@@ -1,0 +1,74 @@
+=== AE / KRITA — PREMIUM PROFİL TARZI FX (kalpli öpücük short) ===
+Amaç: Tensor'dan gelen DURAĞAN karelere, Discord/Telegram premium profil
+animasyonu gibi KÜÇÜK ama kaliteli hareket eklemek.
+Abartma: stil flat kalsın, 3D/parlak AI olmasın.
+
+Kare klasörü: input_karakter_kareleri/poz_1.png … poz_10.png
+Video: Krita Video (panel) → AE Panel ile süsle
+
+--- GENEL ---
+- Süre: ~12–15 sn (10 sayfa ≈ 1.2–1.5 sn/sayfa; öpücük karesi 2 sn)
+- Ease: ease-in-out (sert kesme yok)
+- Renk: mat; glow varsa soft + düşük opacity
+
+--- KARE BAZLI ---
+
+poz_1–2 (yaklaşım)
+- Position Y: ±4–6 px bob (yürüme nefes)
+- Scale: 98% → 100% (kameraya yaklaşım hissi)
+- Opsiyonel: saç ahoge 2° sallanma (null + wiggle 0.5)
+
+poz_3–4 (geçit)
+- Bob devam, hız biraz düş (durmaya hazırlık)
+- poz_4: 0.3 sn hold (pause)
+
+poz_5 (el ağıza)
+- el/kol yoksa tüm kare scale 100→102 hafif “nefes”
+- Soft white rim yok; flat kalsın
+
+poz_6 (KALP ÖPÜCÜK) ★
+AE'de ayrı katman önerisi:
+1) Ana karakter karesi
+2) Shape/PNG: düz PEMBE KALP (2D, ince outline) — yoksa Tensor karesindeki kalbi maskele
+3) Kalp: scale 40% → 120%, opacity 0→100→80, position kalpten kameraya (ekran merkezine)
+4) 2–3 küçük kalp partikülü (aynı stil), delay 0.1 sn
+5) İsteğe: çok hafif vignette (opacity %8) — “premium profil” çerçevesi hissi
+YASAK: lens flare, heavy bloom, chrome sparkle
+
+poz_7
+- Büyük kalp devam ederken kız sağa yürümeye başlar
+- Kalp opacity düş 80→0 (kız giderken kalp “bize” kalsın)
+
+poz_8–9
+- Yürüme bob + sağa drift (position X +8…+20 px kareler arası)
+- Scale 100→92 (uzaklaşma)
+
+poz_10 (kayboluş)
+- Opacity 100→0 (0.8–1.2 sn)
+- VEYA position X sağa taşı + opacity
+- Son 0.3 sn boş bg hold (nefes)
+
+--- SES (opsiyonel, AE) ---
+- Adım: soft tap x2 (geçitte)
+- Öpücük: kısa soft “mwah” veya sessiz + kalp “pop” (çok hafif)
+- Ambiyans: düşük gece rüzgârı (flat short hissi)
+
+--- PREMIUM PROFİL REFERANS MANTIĞI ---
+Profil animasyonları genelde:
+  idle nefes + 1 özel efekt (ateş/kalp/yıldız) + loop
+Bizde loop yok; short:
+  idle/yürüme → TEK özel (kalp) → exit fade
+Kalite = az efekt, doğru timing, stil bozulmasın.
+
+--- KRİTA NOTU ---
+Panel “Krita Video” sadece flipbook.
+FX’lerin çoğu AE’de (ae_edit_notes / bu dosya).
+Krita’da istersen: kalp için ayrı layer PNG loop yoksa AE şart.
+
+--- KONTROL LİSTESİ ---
+[ ] 10 poz aynı bg / aynı karakter ölçeği
+[ ] Chibi yok (istenmediyse)
+[ ] poz_6 kalp flat 2D
+[ ] Kayboluş yumuşak
+[ ] Glow abartısız
+[ ] Toplam süre 12–15 sn

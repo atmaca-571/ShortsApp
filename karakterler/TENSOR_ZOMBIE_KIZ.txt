@@ -1,0 +1,31 @@
+=== TENSOR.ART — ZOMBIE KIZ (GÜNCEL KİLİT) ===
+
+SITE: https://tensor.art
+MODEL: FlatIron Anime RIPROAD  (Flanime kilitliyse bunu kullan)
+YEDEK SITE: https://www.seaart.ai (aynı FlatIron)
+
+--- REF ---
+ANA kimlik: assets/KADRO/OLABILIR/ZOMBIE_KIZ/KIMLIK/kimlik_aktif.png
+  (= begendi_SOLO_eniyi_aday — düz zemin hoodie solo)
+Stil/sahne beğeni: begendi_ANA_3lu_oturan.png (IP düşük tut)
+Eski kalıp: KIMLIK/kimlik_kalip.png (tişört+şort)
+
+IP-Adapter: 0.2 – 0.3 (solo için). 0.5 yüz bozarsa düşür.
+Boyut: 768x1152 | Euler | 20 | CFG 5 | 1 resim
+
+--- DNA ---
+1girl, solo, mint pale green-gray skin zombie doll girl, messy dark bob ahoge,
+flat tired purple-pink eyes no gloss, oversized dark purple-grey hoodie, dark shorts, barefoot,
+flat matte hand-drawn, uneven thin black outlines, NOT polished AI, NOT watercolor
+
+--- HİKÂYE ŞİMDİ ---
+karakterler/DEFTER_KALP_OPUCUK.txt
+karakterler/YAPISTIR_KALP_10SAYFA.txt  ← kopyala yapıştır paketi
+karakterler/AE_KALP_OPUCUK_FX.txt      ← premium FX
+
+--- ARKA PLAN KURALI ---
+Her karede AYNI basit flat sokak + zebra geçit.
+Fotorealistik bina / detaylı cam YOK.
+
+--- NEGATIVE ---
+glossy, shiny, 3d, photoreal, watercolor, chibi, second character, comic grid, bloom

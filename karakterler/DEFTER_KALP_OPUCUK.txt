@@ -1,0 +1,40 @@
+=== DEFTER — KALPLİ ÖPÜCÜK (YENİ KADRAJ) ===
+Süre: ~12–15 sn | 10 sayfa | FlatIron | IP 0.25–0.3
+Ref: KIMLIK/kimlik_aktif.png
+
+--- KAMERA (HER KAREDE AYNI — ÖNEMLİ) ---
+
+Kameraya YAKIN bir yaya geçidi (zebra) — ön planda, bize yakın.
+Arkasında düz / basit gece yolu (fotorealistik derin sokak YOK, uzun koridor YOK).
+Kız yolun SAĞ tarafından gelir → geçide girer → ortada kalpli öpücük → sola/karşıya devam → kaybolur.
+
+İngilizce sabit bg bloğu:
+FIXED CAMERA: front view of a simple flat night road, zebra crosswalk CLOSE TO CAMERA in foreground,
+road continues behind crosswalk simply, character enters from RIGHT side of frame,
+minimal flat buildings, matte colors, NO deep tunnel alley perspective, NO photoreal city
+
+CHARACTER DNA:
+1girl, solo, mint pale green-gray skin zombie doll girl, messy dark bob ahoge,
+flat tired purple eyes no gloss, oversized dark purple-grey hoodie, dark shorts, barefoot,
+exact face as reference, flat matte hand-drawn, uneven thin outlines, NOT polished AI
+
+NEGATIVE:
+glossy, shiny, 3d, photorealistic, multiple panels, comic grid, character sheet, turnaround,
+extra arms, chibi, second character, deep vanishing point alley, photoreal buildings, watermark
+
+--- HİKÂYE ---
+Yakın yaya geçidi. Kız sağdan yürüyüp gelir, geçitte bize kalpli öpücük atar, geçip gider kaybolur.
+
+--- 10 SAYFA ACTION ---
+1) far-right on the road, walking LEFT toward the near crosswalk, full body, starting approach
+2) closer from RIGHT, walking toward crosswalk, mid full body, walk cycle
+3) stepping onto near zebra crosswalk from the right, one foot on white stripe
+4) standing CENTER on near crosswalk facing camera, pause
+5) on crosswalk, hand to mouth preparing kiss
+6) on crosswalk blowing kiss to camera, simple flat pink 2D heart toward viewer
+7) starts walking LEFT across/away from center, heart drifts closer to camera
+8) leaving crosswalk toward LEFT side of frame, three-quarter back
+9) smaller, walking LEFT away from camera along road
+10) exiting LEFT edge or fading small silhouette, quiet end
+
+Panel: Kalpli Opucuk 10syf (yeniden bas) sonra bu promptları kullan.

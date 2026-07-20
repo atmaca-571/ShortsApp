@@ -1,0 +1,15 @@
+=== ŞİMDİ NE YAPACAKSIN (YENİ KADRAJ) ===
+
+KAMERA: yakında yaya geçidi + kız SAĞDAN gelir (derin koridor sokak YOK)
+
+1. Panel açıldıysa: pembe "Kalpli Opucuk 10syf" tekrar bas
+   Süre 14 sn olmalı (110 sn görürsen eski oturum — butona bas)
+
+2. Tensor FlatIron + kimlik_aktif IP 0.25
+
+3. YAPISTIR_KALP_10SAYFA.txt → SAYFA 1 yapıştır → Oluştur
+   (eski LEFT sidewalk promptunu kullanma)
+
+4. İndir → 6) Ekle → SONRAKİ SAYFA → devam
+
+Eski indirdiğin "sol kaldırım" karesini at / kullanma — kadraj değişti.

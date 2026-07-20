@@ -1,0 +1,6 @@
+﻿OLUR — sadece kullanicinin begendigi / kilitledigi
+01_AKI_OKUL = gozluksuz okul kizi
+01_AKI_DISARI = ayni kiz disari (sasiran bere)
+03_REN = steve/ham erkek
+REF = enderman + cift
+Gerisi silindi.

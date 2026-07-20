@@ -1,0 +1,17 @@
+=== NEREDELER? ===
+
+1) ASIL KIZ (okul / elle cizim) — Betimle + kadro:
+   assets\KADRO_KOLAY\AKI_okul_elle_cizim.png
+   assets\KADRO_KOLAY\REN_trenc_elle_cizim.png
+
+2) UZUN PALTO (begendigin, saklandi — kolay bul):
+   assets\SAKLANAN_PALTO\AKI_uzun_palto_koyu_sac.png
+   assets\SAKLANAN_PALTO\REN_uzun_trenc_koyu_sac.png
+   (ayni kopya: KADRO_KOLAY\ALT_AKI_palto.png / ALT_REN_palto.png)
+
+3) Eski kisa yollar (hala calisir):
+   assets\aki_karakter_ref.png = okul kiz
+   assets\aki_palto_ref.png = palto kiz
+
+Rias / maskot fazla png'ler silindi.
+Okumak icin: assets\OKU_BENI_KADRO.txt

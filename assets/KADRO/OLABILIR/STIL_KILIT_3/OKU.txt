@@ -1,0 +1,18 @@
+﻿STIL KILIT = 3 gorsel (yatak HARIC)
+
+01 zombie_okul_flat  -> flat, ince cizgi, uzun ince uzuv, soluk/mat ten, eklem izi OK
+02 koyu_okul_flat    -> koyu mat palet, lo-fi indie, duz boya
+03 bordo_beyazgoz    -> AKI kimlik: bordo sac ahoge, okul forma, beyaz oval goz
+
+KULLANILMAYACAK: yatak sahnesi (cift yatakta) -> KULLANMA/
+
+Bu 3'un ortak dili:
+- mat flat boya (parlak AI YOK)
+- ince/temiz siyah cizgi
+- basit yuz, az golge
+- krem veya koyu duz zemin
+- okul kizi silueti guclu
+
+URETIMDE:
+- AKI = 03 kimlik + 01/02 stil
+- REN = ayni stil dili (siyah trenc), yatak sahnesi ORNEGİ YOK

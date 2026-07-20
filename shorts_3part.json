@@ -1,0 +1,21 @@
+{
+  "birlesik": "PART 1: Karakter gece koridorda ayak sesi duyar, kapı aralanır, 'Part 2'de görüşürüz...' yazısıyla biter.\nPART 2: Kapının ardında yanlış alarm (kedi) ama asıl gölge arkada belirir; yine cliffhanger.\nPART 3: Karakter cesaret bulur, gölge dost çıkar / twist, short biter.",
+  "partlar": [
+    {
+      "baslik": "Part 1",
+      "hikaye": "Gece koridor, ayak sesi, kapı aralanır.",
+      "kanca": "Part 2'de görüşürüz..."
+    },
+    {
+      "baslik": "Part 2",
+      "hikaye": "Kedi çıkar ama asıl gölge arkada.",
+      "kanca": "Part 3'te bitiriyoruz!"
+    },
+    {
+      "baslik": "Part 3",
+      "hikaye": "Cesaret + twist son.",
+      "kanca": "Like & Part 1'e dön link"
+    }
+  ],
+  "ae_notu": "AE'de timeline'i 3'e bol; her part sonuna kanca yazisi ekle."
+}

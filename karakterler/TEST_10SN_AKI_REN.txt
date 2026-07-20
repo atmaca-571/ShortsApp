@@ -1,0 +1,38 @@
+=== 10 SN — AKI + REN (HAM / Steve-kanal stil) + AĞIZ OYNAMA ===
+Süre: 10 sn | Panel: 9 | Izgara: 3x3
+Ref: assets\aki_karakter_ref.png + assets\ren_karakter_ref.png
+Çift bak: assets\KADRO\OLABILIR\CIFT_HAM.png
+
+--- HİKAYE (panele YAPISTIR — Türkçe) ---
+
+Okul bahçesi, basit flat zemin. AKI (bordo saç, gri yelek, kırmızı etek) ve REN (siyah saç, siyah trenç, gri atkı) yan yana. Kısa selamlaşırlar. AKI “merhaba…” der (ağzı açılıp kapanır). REN “hm.” diye cevap verir (ağzı açılıp kapanır). İkisi birbirine bakar, hafif kızarır. AKI bir şey daha söyler, REN başını eğer. Son kare: ikisi yan yana, ağızlar kapalı, utangaç gülümseme. Konuşma BALONU YOK — sadece ağız şekli değişsin (flipbook’ta konuşuyor gibi). Elle çizilmiş Dangoheart/Steve basitlik.
+
+--- İNGİLİZCE POZ (Metni Topla / PixAI — YAPISTIR) ---
+
+1) AKI and REN stand side by side schoolyard, both mouth CLOSED dash, full body, handmade flat style
+2) AKI turns slightly toward REN, mouth OPEN small oval (starting to speak), REN mouth closed listening, same footing
+3) AKI still speaking, mouth CLOSED dash (lip flap), REN mouth closed, bodies almost same as panel 2
+4) AKI mouth OPEN small oval again (still talking), REN slight nod, mouth closed
+5) REN answers, mouth OPEN small oval, AKI mouth closed listening, hands in pockets on REN
+6) REN mouth CLOSED dash (lip flap continue), AKI soft blush, mouth closed
+7) Both face each other closer, AKI mouth OPEN small oval (short line), REN mouth closed
+8) AKI mouth CLOSED, REN mouth OPEN small oval (short reply), slight awkward lean
+9) Final: both mouth CLOSED soft shy smile, standing side by side, look away then peek, no speech bubbles
+
+--- STİL BLOĞU ---
+
+Amateur hand-drawn Dangoheart / Steve-channel YouTube short: slightly uneven wobbly black ink lines, FLAT bucket colors, paper grain, simple big white sclera eyes with tiny dark pupils, dash or small-oval mouths only, soft blush ticks, wonky beginner proportions, hair as flat clumps, low detail background, looks like a human drew it for a flipbook — NOT AI polished, NOT glossy, NOT Cartoon Network thick rubberhose. Match aki_karakter_ref.png and ren_karakter_ref.png exactly.
+
+--- NEGATİF ---
+
+ai generated look, perfect symmetry, plastic skin, hyper detail, bloom, glow, gradients, photoreal, 3d, speech bubbles, watermark, teeth detail, too many mouth shapes
+
+--- PANELDE AKIŞ (direkt) ---
+
+1) Ref’ler: aki_karakter_ref + ren_karakter_ref (HAM stil)
+2) Hikaye kutusuna YUKARIDAKİ Türkçe hikayeyi yapıştır
+3) Süre = 10  (panel ~9 otomatik)
+4) Metni Topla → Metni Al → PixAI’ye yapıştır (poz listesi + stil)
+5) İndir → Ekle → 7) Krita Video  (=10 sn flipbook; ağız açık/kapalı nöbetleşe oynar)
+
+NOT: Konuşma balonu YOK. Ağız sadece çizgi/oval — Krita sayfaları çevirince konuşuyor gibi durur.

@@ -234,10 +234,11 @@ def kutuphanedeki_karakterler():
 # ============================================================================
 # GEMINI AI ENTEGRASYONU - "Hikayeni Anlat" ozelligi
 # ============================================================================
-# NOT: gemini-2.0-flash modeli 1 Haziran 2026'da KAPATILDI. Guncel, dogru
-# model adi gemini-3.5-flash (Temmuz 2026 itibariyle resmi Google
-# dokumantasyonundaki ornek model budur).
-GEMINI_MODEL = "gemini-3.5-flash"
+# NOT: gemini-2.5-flash, Temmuz 2026 itibariyle stabil ve ucretsiz katmanda
+# dogrulanmis modeldir (dakikada ~10, gunde ~500 istek). Daha yeni surumler
+# (gemini-3.x) cikabilir ama ucretsiz katman durumu daha az kesin oldugu icin
+# simdilik bu modelde kaliyoruz.
+GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 GEMINI_IZINLI_POZISYONLAR = {"sol", "merkez", "sag"}
@@ -247,8 +248,8 @@ GEMINI_IZINLI_SAHNE_GECISI = {"oto", "kes"}
 GEMINI_IZINLI_ARKAPLAN_HAREKETI = {"zoom", "kaydir_sagdan_sola", "kaydir_soldan_saga"}
 
 
-def gemini_sistem_talimati_uret(mevcut_arkaplanlar, mevcut_karakterler):
-    return (
+def gemini_sistem_talimati_uret(mevcut_arkaplanlar, mevcut_karakterler, hedef_sure_saniye=None):
+    talimat = (
         "Sen bir video sahne planlayicisisin. Kullanicinin anlattigi hikayeyi/istegi, "
         "ASAGIDAKI KURALLARA HARFIYEN uyarak bir JSON sahne listesine cevir.\n\n"
         f"KULLANILABILIR ARKA PLAN DOSYALARI (SADECE bunlari kullan, baska isim UYDURMA, "
@@ -261,6 +262,20 @@ def gemini_sistem_talimati_uret(mevcut_arkaplanlar, mevcut_karakterler):
         "- giris / cikis: \"yok\", \"solma\"\n"
         "- sahne_gecisi: \"oto\" (yumusak), \"kes\" (sert kesme)\n"
         "- arkaplan_hareketi: \"zoom\", \"kaydir_sagdan_sola\", \"kaydir_soldan_saga\"\n\n"
+    )
+
+    if hedef_sure_saniye and hedef_sure_saniye > 0:
+        talimat += (
+            f"SURE REHBERI (ONERI, KESIN KURAL DEGIL): Sahnelerin toplam suresi (tum 'sure' "
+            f"degerlerinin toplami) yaklasik {hedef_sure_saniye:.0f} saniye civarinda olsun - "
+            "bu, YouTube Shorts icin genel olarak iyi calisan bir uzunluk. AMA BU SAYI BIR TAVAN/"
+            "TABAN DEGIL: eger hikaye anlatilmak istenen seyi tam olarak bu surede tamamlamiyorsa, "
+            "SAKIN yapay olarak sahneleri kirpip aceleye getirme veya dolgu/gereksiz sahne ekleyip "
+            "uzatma. Hikaye kendi dogal temposunda, ne kadar surmesi gerekiyorsa o kadar sursun - "
+            "tamamlanmis ve doyurucu bir anlatim, hedef sureye tam uymaktan HER ZAMAN daha onemlidir.\n\n"
+        )
+
+    talimat += (
         "SADECE gecerli bir JSON dizisi don, baska HICBIR aciklama/metin ekleme, "
         "kod bloku (```) da ekleme. Tam olarak su formatta:\n"
         "[\n"
@@ -271,15 +286,17 @@ def gemini_sistem_talimati_uret(mevcut_arkaplanlar, mevcut_karakterler):
         "   \"metin\": \"...\"}\n"
         "]"
     )
+    return talimat
 
 
-def gemini_ile_sahne_uret(api_anahtari, hikaye_metni, mevcut_arkaplanlar, mevcut_karakterler, zaman_asimi=30):
+def gemini_ile_sahne_uret(api_anahtari, hikaye_metni, mevcut_arkaplanlar, mevcut_karakterler,
+                           hedef_sure_saniye=None, zaman_asimi=30):
     """
     Gemini API'sine hikaye metnini gonderir, JSON sahne listesi ister.
     Basarili olursa (sahneler_listesi, None) doner.
     Basarisiz olursa (None, hata_mesaji) doner - HICBIR ZAMAN exception firlatmaz.
     """
-    sistem_talimati = gemini_sistem_talimati_uret(mevcut_arkaplanlar, mevcut_karakterler)
+    sistem_talimati = gemini_sistem_talimati_uret(mevcut_arkaplanlar, mevcut_karakterler, hedef_sure_saniye)
 
     istek_govdesi = {
         "contents": [
@@ -439,124 +456,93 @@ def dosya_video_mu(dosya_adi):
 
 
 # ============================================================================
-# GEMINI API ENTEGRASYONU (serbest metinle hikaye anlatip AI'nin bizim
-# script.txt semamiza uygun sahneler uretmesi icin)
+# GEMINI GORSEL URETME/DUZELTME ("AI Cizim Asistani")
 # ============================================================================
-GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+# NOT: gemini-2.5-flash-image (kod adi "Nano Banana") - metin + gorsel girdi
+# alip GORSEL uretebilen model. 1 Ekim 2026'da kullanimdan kaldirilmasi
+# planlaniyor - o tarihten sonra "gemini-3.1-flash-image" gibi bir modele
+# gecmek gerekebilir.
+GEMINI_GORSEL_MODEL = "gemini-2.5-flash-image"
+GEMINI_GORSEL_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_GORSEL_MODEL}:generateContent"
 
 
-def _gemini_sistem_talimati_olustur(mevcut_arkaplanlar, mevcut_karakterler):
-    return (
-        "Sen bir video sahne planlayicisin. Kullanicinin serbest metinle anlattigi "
-        "hikayeyi, ASAGIDAKI KESIN JSON semasina uygun bir sahne listesine cevireceksin.\n\n"
-        "COK ONEMLI KURAL: Sadece asagida listelenen MEVCUT dosya isimlerini "
-        "kullanabilirsin. YENI bir dosya adi UYDURAMAZSIN (o dosya diskte yok, "
-        "hata verir). Hikayede olmayan bir karakter/arka plan gerekiyorsa, en "
-        "yakin mevcut olani kullan.\n\n"
-        f"Mevcut arka plan/video dosyalari: {', '.join(mevcut_arkaplanlar) or '(hic yok)'}\n"
-        f"Mevcut karakter dosyalari (uzantisiz kullan): "
-        f"{', '.join(os.path.splitext(k)[0] for k in mevcut_karakterler) or '(hic yok)'}\n\n"
-        "Izin verilen pozisyon degerleri: sol, merkez, sag\n"
-        "Izin verilen animasyon degerleri: sabit, zipla, titre, yuru_sagdan_sola, yuru_soldan_saga\n"
-        "Izin verilen giris/cikis degerleri: yok, solma\n"
-        "Izin verilen arkaplan_hareketi: zoom, kaydir_sagdan_sola, kaydir_soldan_saga\n"
-        "Izin verilen sahne_gecisi: oto, kes\n\n"
-        "SADECE gecerli JSON don (dizi/array), markdown code fence KULLANMA, "
-        "baska hicbir aciklama ekleme. Tam format:\n"
-        '[{"sure": 3.0, "arkaplan_dosya": "ev.jpg", "arkaplan_hareketi": "zoom", '
-        '"sahne_gecisi": "oto", "karakterler": [{"ad": "rias", "pozisyon": "sol", '
-        '"animasyon": "zipla", "giris": "solma", "cikis": "yok"}], '
-        '"metin": "Altyazi metni"}]'
+def _resmi_base64_kodla(dosya_yolu):
+    with open(dosya_yolu, "rb") as f:
+        veri = f.read()
+    import base64
+    uzanti = os.path.splitext(dosya_yolu)[1].lower()
+    mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(
+        uzanti.lstrip("."), "image/png"
     )
+    return base64.b64encode(veri).decode("ascii"), mime
 
 
-def gemini_ile_sahne_uret(api_key, hikaye_metni, mevcut_arkaplanlar, mevcut_karakterler):
+def gemini_ile_karakter_ciz(api_key, aciklama, taslak_yolu=None, referans_yolu=None, zaman_asimi=60):
     """
-    Kullanicinin serbest metinle anlattigi hikayeyi Gemini API'ye gonderir,
-    donen JSON'u kendi ic sahne formatimiza cevirir.
+    Taslak (kotu/basit) bir karakter gorseli + (opsiyonel) bir referans/stil
+    gorseli + yazili aciklama gonderir, Gemini'nin gorsel modelinden
+    IYILESTIRILMIS/YENI bir karakter gorseli ister.
 
-    Donus: (sahneler, uyari_metni) basarili olursa (uyari_metni bos olabilir),
-           (None, hata_metni) basarisiz olursa. HICBIR ZAMAN exception
-           firlatmaz - arka plan thread'inde guvenle cagirilabilir.
+    Donus: (PIL.Image, None) basarili olursa, (None, hata_metni) basarisiz
+    olursa. HICBIR ZAMAN exception firlatmaz.
     """
     try:
-        sistem_talimati = _gemini_sistem_talimati_olustur(mevcut_arkaplanlar, mevcut_karakterler)
+        parcalar = []
+
+        talimat = (
+            "Bu bir 2D anime/manga tarzi karakter gorseli. "
+            "SADECE karakterin kendisini uret, DUZ/BEYAZ bir zemin uzerinde, "
+            "tam boy, on cepheden. Arka planda baska hicbir sey olmasin.\n\n"
+            f"Istenen: {aciklama}"
+        )
+
+        if taslak_yolu and os.path.exists(taslak_yolu):
+            veri_b64, mime = _resmi_base64_kodla(taslak_yolu)
+            parcalar.append({"inline_data": {"mime_type": mime, "data": veri_b64}})
+            talimat += "\n\nIlk gorsel: duzeltilmesi/gelistirilmesi istenen TASLAK karakter."
+
+        if referans_yolu and os.path.exists(referans_yolu):
+            veri_b64, mime = _resmi_base64_kodla(referans_yolu)
+            parcalar.append({"inline_data": {"mime_type": mime, "data": veri_b64}})
+            talimat += "\n\nSon gorsel: STIL REFERANSI - sanat tarzi buna benzemeli."
+
+        parcalar.append({"text": talimat})
 
         istek_govdesi = json.dumps({
-            "system_instruction": {"parts": [{"text": sistem_talimati}]},
-            "contents": [{"role": "user", "parts": [{"text": hikaye_metni}]}],
+            "contents": [{"role": "user", "parts": parcalar}],
+            "generation_config": {"response_modalities": ["TEXT", "IMAGE"]},
         }).encode("utf-8")
 
         istek = urllib.request.Request(
-            GEMINI_ENDPOINT, data=istek_govdesi,
+            GEMINI_GORSEL_ENDPOINT, data=istek_govdesi,
             headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
             method="POST",
         )
 
         try:
-            with urllib.request.urlopen(istek, timeout=30) as yanit:
+            with urllib.request.urlopen(istek, timeout=zaman_asimi) as yanit:
                 yanit_json = json.loads(yanit.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
-            gövde = e.read().decode("utf-8", errors="replace")
-            return None, f"Gemini API HTTP hatasi ({e.code}): {gövde[:300]}"
+            govde = e.read().decode("utf-8", errors="replace")
+            return None, f"Gemini Gorsel API HTTP hatasi ({e.code}): {govde[:300]}"
         except urllib.error.URLError as e:
             return None, f"Internet baglantisi/Gemini API'ye ulasilamadi: {e.reason}"
 
         try:
-            metin = yanit_json["candidates"][0]["content"]["parts"][0]["text"]
+            parcalar_cevap = yanit_json["candidates"][0]["content"]["parts"]
         except (KeyError, IndexError):
             return None, f"Gemini'den beklenmeyen bir yanit geldi: {json.dumps(yanit_json)[:300]}"
 
-        # Gemini bazen "SADECE JSON don" desek bile ```json ... ``` ile
-        # sarmalayabilir - onu temizleyelim.
-        metin_temiz = metin.strip()
-        if metin_temiz.startswith("```"):
-            metin_temiz = metin_temiz.split("\n", 1)[1] if "\n" in metin_temiz else metin_temiz
-            if metin_temiz.rstrip().endswith("```"):
-                metin_temiz = metin_temiz.rstrip()[:-3]
-            metin_temiz = metin_temiz.replace("```json", "").replace("```", "").strip()
+        import base64
+        from io import BytesIO
 
-        try:
-            ham_sahneler = json.loads(metin_temiz)
-        except json.JSONDecodeError as e:
-            return None, f"AI'nin cevabi gecerli JSON degildi: {e}\n\nHam cevap: {metin_temiz[:300]}"
+        for parca in parcalar_cevap:
+            veri_inline = parca.get("inline_data") or parca.get("inlineData")
+            if veri_inline and veri_inline.get("data"):
+                gorsel_bytes = base64.b64decode(veri_inline["data"])
+                return Image.open(BytesIO(gorsel_bytes)), None
 
-        gecerli_arkaplanlar = set(mevcut_arkaplanlar)
-        gecerli_karakterler = set(os.path.splitext(k)[0] for k in mevcut_karakterler)
-        uyarilar = []
-
-        sahneler = []
-        for hs in ham_sahneler:
-            arkaplan_adi = hs.get("arkaplan_dosya", "")
-            if arkaplan_adi not in gecerli_arkaplanlar:
-                uyarilar.append(f"'{arkaplan_adi}' kutuphanede yok, AI hatali bir dosya adi uretmis olabilir.")
-
-            arkaplan_dosya_alani = arkaplan_alanini_kodla(
-                arkaplan_adi,
-                hs.get("arkaplan_hareketi", "zoom"),
-                hs.get("sahne_gecisi", "oto"),
-            )
-            karakterler = []
-            for k in hs.get("karakterler", []):
-                ad = k.get("ad", "")
-                if ad not in gecerli_karakterler:
-                    uyarilar.append(f"Karakter '{ad}' kutuphanede yok, AI hatali bir isim uretmis olabilir.")
-                karakterler.append({
-                    "ad": ad,
-                    "pozisyon": k.get("pozisyon", "merkez"),
-                    "animasyon": k.get("animasyon", "sabit"),
-                    "giris": k.get("giris", "yok"),
-                    "cikis": k.get("cikis", "yok"),
-                })
-            sahneler.append({
-                "sure": float(hs.get("sure", 3.0)),
-                "arkaplan_dosya": arkaplan_dosya_alani,
-                "karakterler": karakterler,
-                "metin": hs.get("metin", ""),
-            })
-
-        return sahneler, ("\n".join(uyarilar) if uyarilar else "")
+        return None, "Gemini bir gorsel uretmedi (sadece metin donmus olabilir - aciklamayi degistirip tekrar dene)."
 
     except Exception as e:
         return None, f"Beklenmeyen hata: {e}"
@@ -630,11 +616,14 @@ class AEStudioPaneli:
         self.ayarlar = ayarlari_yukle()
         self.sahneler = sahneleri_yukle()
         self._ai_sonuc_kuyrugu = queue.Queue()
+        self._cizim_sonuc_kuyrugu = queue.Queue()
+        self._ae_onizleme_yapildi = False
 
         self._arayuzu_kur()
         self._sahne_listesini_guncelle()
         self.log_yaz(f"{len(self.sahneler)} sahne yuklendi (onceki oturumdan).")
         self._ai_kuyrugunu_dinle()
+        self._cizim_kuyrugunu_dinle()
 
     def _ai_kuyrugunu_dinle(self):
         """
@@ -654,6 +643,98 @@ class AEStudioPaneli:
             pass
         finally:
             self.pencere.after(150, self._ai_kuyrugunu_dinle)
+
+    def _cizim_kuyrugunu_dinle(self):
+        """AI cizim sonucunu, ayni kanitlanmis queue+after deseniyle ana
+        thread'e guvenli sekilde tasir."""
+        try:
+            while True:
+                gorsel, hata = self._cizim_sonuc_kuyrugu.get_nowait()
+                self._cizim_sonucunu_isle(gorsel, hata)
+        except queue.Empty:
+            pass
+        finally:
+            self.pencere.after(150, self._cizim_kuyrugunu_dinle)
+
+    def _cizim_taslak_sec(self):
+        yol = filedialog.askopenfilename(
+            title="Taslak karakter gorselini sec",
+            filetypes=[("Resimler", "*.jpg *.jpeg *.png *.webp")]
+        )
+        if yol:
+            self._cizim_taslak_yolu = yol
+            self.cizim_taslak_etiketi.config(text=f"Taslak: {os.path.basename(yol)}")
+
+    def _cizim_referans_sec(self):
+        yol = filedialog.askopenfilename(
+            title="Stil referansi gorselini sec",
+            filetypes=[("Resimler", "*.jpg *.jpeg *.png *.webp")]
+        )
+        if yol:
+            self._cizim_referans_yolu = yol
+            self.cizim_referans_etiketi.config(text=f"Referans: {os.path.basename(yol)}")
+
+    def _ai_ile_karakter_ciz(self):
+        api_anahtari = self.ayarlar.get("gemini_api_anahtari", "").strip()
+        if not api_anahtari:
+            messagebox.showwarning(
+                "API Anahtari Eksik",
+                "Once 'Gemini API Anahtari' butonundan ucretsiz API anahtarini girmen lazim."
+            )
+            return
+
+        aciklama = self.cizim_aciklama_kutusu.get().strip()
+        if not aciklama:
+            messagebox.showwarning("Eksik Aciklama", "Once yukaridaki kutuya nasil bir karakter istedigini yaz.")
+            return
+
+        if not self._cizim_taslak_yolu and not self._cizim_referans_yolu:
+            messagebox.showwarning(
+                "Eksik Gorsel",
+                "En az bir taslak veya referans gorsel secmen onerilir (hicbiri secilmezse "
+                "AI sadece aciklamana gore sifirdan uretir)."
+            )
+
+        self.cizim_uret_butonu.config(state="disabled", text="AI CIZIYOR...")
+        self.log_yaz("")
+        self.log_yaz("Gemini gorsel modeline istek gonderiliyor, bekleniyor (biraz uzun surebilir)...")
+
+        taslak_yolu = self._cizim_taslak_yolu
+        referans_yolu = self._cizim_referans_yolu
+
+        def arka_plan_gorevi():
+            gorsel, hata = gemini_ile_karakter_ciz(api_anahtari, aciklama, taslak_yolu, referans_yolu)
+            self._cizim_sonuc_kuyrugu.put((gorsel, hata))
+
+        threading.Thread(target=arka_plan_gorevi, daemon=True).start()
+
+    def _cizim_sonucunu_isle(self, gorsel, hata):
+        self.cizim_uret_butonu.config(state="normal", text="AI ile Ciz/Duzelt")
+
+        if gorsel is None:
+            self.log_yaz(f"[HATA] AI gorsel uretemedi: {hata}")
+            messagebox.showerror("AI Hatasi", f"Gemini gorsel uretemedi:\n\n{hata}")
+            return
+
+        isim = simpledialog.askstring(
+            "Karaktere Isim Ver",
+            "Bu yeni karakteri kutuphaneye eklemek icin bir isim yaz "
+            "(bos birakirsan kaydedilmez, sadece onizlenir):",
+            parent=self.pencere
+        )
+        if not isim or not isim.strip():
+            self.log_yaz("AI gorseli uretildi ama isim verilmedigi icin kutuphaneye eklenmedi.")
+            return
+
+        hedef_ad = benzersiz_dosya_adi(KARAKTER_KLASORU, isim.strip(), ".png")
+        hedef_yol = os.path.join(KARAKTER_KLASORU, hedef_ad)
+        gorsel.convert("RGBA").save(hedef_yol)
+        self.log_yaz(f"AI'nin uretttigi karakter kutuphaneye eklendi: {hedef_ad}")
+        messagebox.showinfo(
+            "Karakter Eklendi",
+            f"'{hedef_ad}' artik kutuphanende. 'Yeni Sahne Ekle' penceresinde "
+            "'Kutuphaneden Sec' ile kullanabilirsin."
+        )
 
     # ------------------------------------------------------------
     def _arayuzu_kur(self):
@@ -686,6 +767,17 @@ class AEStudioPaneli:
                    "Gerilim artar, sahne sertçe kesilir."
         )
 
+        hedef_sure_satiri = tk.Frame(ai_cercevesi)
+        hedef_sure_satiri.pack(fill="x", padx=8, pady=(0, 4))
+        tk.Label(hedef_sure_satiri, text="Hedef toplam sure (saniye, ONERI - hikaye kisa/uzunsa "
+                                          "zorla degistirilmez):", font=("Segoe UI", 8)).pack(side="left")
+        self.hedef_sure_kutusu = tk.Spinbox(hedef_sure_satiri, from_=0, to=180, width=5)
+        self.hedef_sure_kutusu.delete(0, "end")
+        self.hedef_sure_kutusu.insert(0, "40")
+        self.hedef_sure_kutusu.pack(side="left", padx=(6, 0))
+        tk.Label(hedef_sure_satiri, text="(0 = hedef verme, tamamen hikayeye birak)",
+                 font=("Segoe UI", 7), fg="#777777").pack(side="left", padx=(6, 0))
+
         ai_buton_satiri = tk.Frame(ai_cercevesi)
         ai_buton_satiri.pack(fill="x", padx=8, pady=(0, 8))
         self.ai_uret_butonu = tk.Button(
@@ -697,6 +789,34 @@ class AEStudioPaneli:
             ai_buton_satiri, text="Gemini API Anahtari", font=("Segoe UI", 8),
             command=self.gemini_anahtarini_duzenle
         ).pack(side="left")
+
+        # --- AI Cizim Asistani ---
+        cizim_cercevesi = tk.LabelFrame(ana, text="AI Cizim Asistani (Taslak -> Iyilestirilmis Karakter)", font=("Segoe UI", 9, "bold"))
+        cizim_cercevesi.pack(fill="x", pady=(4, 4))
+
+        self._cizim_taslak_yolu = None
+        self._cizim_referans_yolu = None
+
+        cizim_dosya_satiri = tk.Frame(cizim_cercevesi)
+        cizim_dosya_satiri.pack(fill="x", padx=8, pady=(6, 4))
+
+        self.cizim_taslak_etiketi = tk.Label(cizim_dosya_satiri, text="Taslak: (secilmedi)", font=("Segoe UI", 8), fg="#555555")
+        self.cizim_taslak_etiketi.pack(side="left", expand=True, fill="x")
+        tk.Button(cizim_dosya_satiri, text="Taslak Sec", command=self._cizim_taslak_sec).pack(side="left", padx=(4, 8))
+
+        self.cizim_referans_etiketi = tk.Label(cizim_dosya_satiri, text="Referans: (yok)", font=("Segoe UI", 8), fg="#555555")
+        self.cizim_referans_etiketi.pack(side="left", expand=True, fill="x")
+        tk.Button(cizim_dosya_satiri, text="Referans Sec (opsiyonel)", command=self._cizim_referans_sec).pack(side="left", padx=(4, 0))
+
+        self.cizim_aciklama_kutusu = tk.Entry(cizim_cercevesi, font=("Segoe UI", 9))
+        self.cizim_aciklama_kutusu.pack(fill="x", padx=8, pady=(0, 4))
+        self.cizim_aciklama_kutusu.insert(0, "Ornek: kirmizi sacli anime kizi, siyah deri ceket, savasci duruşu")
+
+        self.cizim_uret_butonu = tk.Button(
+            cizim_cercevesi, text="AI ile Ciz/Duzelt", command=self._ai_ile_karakter_ciz,
+            bg="#00897B", fg=RENK_BEYAZ, font=("Segoe UI", 10, "bold")
+        )
+        self.cizim_uret_butonu.pack(fill="x", padx=8, pady=(0, 8))
 
         # --- Sahne listesi ---
         tk.Label(ana, text="Sahne Sirasi:", font=("Segoe UI", 10)).pack(anchor="w", pady=(8, 2))
@@ -730,6 +850,43 @@ class AEStudioPaneli:
             alt_cerceve, text="AFTER EFFECTS'I BASLAT", command=self.ae_baslat,
             bg=RENK_AE_BG, fg=RENK_BEYAZ, font=("Segoe UI", 11, "bold"), height=2
         ).pack(fill="x", pady=2)
+
+        # --- Edit chat: izle -> duzelt -> devam et / render ---
+        edit_cerceve = tk.LabelFrame(
+            ana, text="Edit Chat (AE acikken panelde kal — timing / ses / agiz notlari)",
+            font=("Segoe UI", 9, "bold"), fg="#BF360C"
+        )
+        edit_cerceve.pack(fill="x", pady=(8, 4))
+        tk.Label(
+            edit_cerceve,
+            text=(
+                "AE'de canli onizleme acilir (henuz final render degil). Begedigin/begenmedigin "
+                "seyi asagi yaz (orn: 'saniye 2'de ruzgar sesi', 'agiz oynasın', 'tempo normal'). "
+                "Ilk tik: EDIT'E BASLA. Izledikten sonra dugme DEVAM ET olur."
+            ),
+            font=("Segoe UI", 8), fg="#555555", wraplength=760, justify="left"
+        ).pack(anchor="w", padx=8, pady=(4, 2))
+        self.edit_chat_kutusu = tk.Text(edit_cerceve, height=4, wrap="word", font=("Segoe UI", 9))
+        self.edit_chat_kutusu.pack(fill="x", padx=8, pady=(0, 4))
+        self.edit_chat_kutusu.insert(
+            "1.0",
+            "Ornek: Tempo en normal hizda olsun. Arkaya ruzgar ambiance koy. "
+            "Karakterler konusurken agiz kucuk hareket yapsin. Sahne gecisleri yumuşak."
+        )
+        self._ae_onizleme_yapildi = False
+        self.edit_aksiyon_butonu = tk.Button(
+            edit_cerceve,
+            text="EDIT'E BASLA (AE ac + canli onizleme)",
+            command=self._edit_aksiyon,
+            bg="#E65100", fg=RENK_BEYAZ, font=("Segoe UI", 11, "bold"), height=2
+        )
+        self.edit_aksiyon_butonu.pack(fill="x", padx=8, pady=(0, 4))
+        tk.Button(
+            edit_cerceve,
+            text="Chat'i Sifirla (yeni duzeltme turu)",
+            command=self._edit_chat_sifirla,
+            font=("Segoe UI", 8)
+        ).pack(anchor="e", padx=8, pady=(0, 6))
 
         klasor_satiri = tk.Frame(alt_cerceve)
         klasor_satiri.pack(fill="x", pady=(6, 0))
@@ -1138,9 +1295,81 @@ class AEStudioPaneli:
         try:
             subprocess.Popen([ae_yolu, "-r", jsx_yolu])
             self.log_yaz("After Effects komutu gonderildi.")
+            if hasattr(self, "edit_aksiyon_butonu"):
+                self._ae_onizleme_yapildi = True
+                self.edit_aksiyon_butonu.config(
+                    text="DEVAM ET (duzeltme varsa uygula / yoksa AE'de Render)"
+                )
         except Exception as e:
             self.log_yaz(f"[HATA] After Effects baslatilamadi: {e}")
             messagebox.showerror("Baslatilamadi", f"After Effects baslatilamadi:\n{e}")
+
+    def _edit_notlarini_kaydet(self):
+        """Edit chat notlarini dosyaya yazar — AE / ileride JSX bu dosyayi okuyabilir."""
+        notlar = ""
+        if hasattr(self, "edit_chat_kutusu"):
+            notlar = self.edit_chat_kutusu.get("1.0", "end-1c").strip()
+        yol = os.path.join(BASE_DIR, "ae_edit_notes.txt")
+        with open(yol, "w", encoding="utf-8") as f:
+            f.write(notlar + "\n")
+        # script metadata yanina da kopyala (kontrol paneli payload ile uyumlu)
+        try:
+            payload_yan = os.path.join(BASE_DIR, "ae_render_payload.notes.txt")
+            with open(payload_yan, "w", encoding="utf-8") as f:
+                f.write(notlar + "\n")
+        except Exception:
+            pass
+        self.log_yaz(f"Edit notlari kaydedildi: {yol}")
+        return notlar, yol
+
+    def _edit_chat_sifirla(self):
+        if hasattr(self, "edit_chat_kutusu"):
+            self.edit_chat_kutusu.delete("1.0", "end")
+        self._ae_onizleme_yapildi = False
+        if hasattr(self, "edit_aksiyon_butonu"):
+            self.edit_aksiyon_butonu.config(
+                text="EDIT'E BASLA (AE ac + canli onizleme)"
+            )
+        self.log_yaz("Edit chat sifirlandi — yeni tur.")
+
+    def _edit_aksiyon(self):
+        """
+        1. tik: notlari kaydet + AE baslat (canli onizleme, final render degil)
+        2. tik (DEVAM ET): notlari yeniden yaz; duzeltme varsa AE'yi tekrar
+           script ile ac; yoksa kullaniciya AE Render Queue'yu hatirlat.
+        """
+        notlar, yol = self._edit_notlarini_kaydet()
+
+        if not self._ae_onizleme_yapildi:
+            self.log_yaz("EDIT'E BASLA: AE canli onizleme icin aciliyor...")
+            self.ae_baslat()
+            messagebox.showinfo(
+                "Canli Onizleme",
+                "After Effects acildi. Projeyi izle (henuz kaydetme/render zorunlu degil).\n\n"
+                "Begendigini / duzeltmeyi chate yaz, sonra dugmeye tekrar bas "
+                "(DEVAM ET olur)."
+            )
+            return
+
+        # DEVAM ET turu
+        if notlar.strip():
+            self.log_yaz("DEVAM ET: duzeltme notlari var — AE script yeniden kosuyor...")
+            self.ae_baslat()
+            messagebox.showinfo(
+                "Devam",
+                f"Notlar kaydedildi:\n{yol}\n\n"
+                "AE script yeniden calisti (canli onizleme).\n"
+                "Begendiysen AE'de Render Queue'dan final render al.\n"
+                "Yeni duzeltme icin 'Chat'i Sifirla' kullan."
+            )
+        else:
+            self.log_yaz("DEVAM ET: ekstra not yok — final render hatirlatildi.")
+            messagebox.showinfo(
+                "Render Zamani",
+                "Ek duzeltme notu yok.\n\n"
+                "After Effects'te Window → Render Queue ac, kuyruktaki isi Start et.\n"
+                "Bittiğinde cikti videonu paneldan / klasorden izleyebilirsin."
+            )
 
     def _ae_yolunu_sor(self):
         messagebox.showinfo(
@@ -1203,13 +1432,24 @@ class AEStudioPaneli:
             )
             return
 
+        try:
+            hedef_sure_saniye = float(self.hedef_sure_kutusu.get())
+        except ValueError:
+            hedef_sure_saniye = 0
+        hedef_sure_saniye = hedef_sure_saniye if hedef_sure_saniye > 0 else None
+
         self.ai_uret_butonu.config(state="disabled", text="AI DUSUNUYOR...")
         self.log_yaz("")
-        self.log_yaz("Gemini'ye hikaye gonderiliyor, bekleniyor...")
+        if hedef_sure_saniye:
+            self.log_yaz(f"Gemini'ye hikaye gonderiliyor (hedef ~{hedef_sure_saniye:.0f}sn - "
+                         "sadece oneri, hikaye kisa/uzunsa zorla degistirilmeyecek), bekleniyor...")
+        else:
+            self.log_yaz("Gemini'ye hikaye gonderiliyor (sure hedefi yok, tamamen hikayeye birakildi), bekleniyor...")
 
         def arka_plan_gorevi():
             sahneler, hata_veya_uyari = gemini_ile_sahne_uret(
-                api_anahtari, hikaye_metni, mevcut_arkaplanlar, mevcut_karakterler
+                api_anahtari, hikaye_metni, mevcut_arkaplanlar, mevcut_karakterler,
+                hedef_sure_saniye=hedef_sure_saniye
             )
             self._ai_sonuc_kuyrugu.put((sahneler, hata_veya_uyari))
 
@@ -1227,13 +1467,15 @@ class AEStudioPaneli:
             self.sahneler.append(sahne)
         self._sahne_listesini_guncelle()
 
-        self.log_yaz(f"AI {len(sahneler)} sahne uretti ve listeye eklendi.")
+        toplam_sure = sum(float(s.get("sure", 0)) for s in sahneler)
+        self.log_yaz(f"AI {len(sahneler)} sahne uretti ve listeye eklendi (toplam ~{toplam_sure:.1f}sn).")
         if hata_veya_uyari:
             self.log_yaz("AI uyarilari (bazi degerler duzeltildi):\n" + hata_veya_uyari)
         messagebox.showinfo(
             "Sahneler Uretildi",
-            f"AI {len(sahneler)} yeni sahne uretti. Listeyi kontrol et, istersen duzenle, "
-            "sonra 'script.txt Olustur' ve 'AFTER EFFECTS'I BASLAT' ile devam et."
+            f"AI {len(sahneler)} yeni sahne uretti (toplam ~{toplam_sure:.1f} saniye). "
+            "Listeyi kontrol et, istersen duzenle, sonra 'script.txt Olustur' ve "
+            "'AFTER EFFECTS'I BASLAT' ile devam et."
         )
 
     def ayarlari_duzenle(self):

@@ -1,0 +1,20 @@
+{
+  "durum": "kilitli",
+  "not": "ANA: solo hoodie (begendi_SOLO). Alternatif: 3lu oturan. Motor FlatIron IP 0.2-0.3. Hikaye: kalpli opucuk yaya gecidi.",
+  "kiz": {
+    "ad": "ZOMBIE_KIZ",
+    "ref": "assets/KADRO/OLABILIR/ZOMBIE_KIZ/KIMLIK/kimlik_aktif.png",
+    "ref_yedek": "assets/KADRO/OLABILIR/ZOMBIE_KIZ/begendi_SOLO_eniyi_aday.png",
+    "stil_sahne": "assets/KADRO/OLABILIR/ZOMBIE_KIZ/begendi_ANA_3lu_oturan.png"
+  },
+  "cizim_motoru": "tensor",
+  "model": "FlatIron Anime RIPROAD",
+  "ip_adapter": 0.25,
+  "mod": "defter_flipbook",
+  "hikaye": "karakterler/DEFTER_KALP_OPUCUK.txt",
+  "yapistir": "karakterler/YAPISTIR_KALP_10SAYFA.txt",
+  "ae_fx": "karakterler/AE_KALP_OPUCUK_FX.txt",
+  "sure_sn": 14,
+  "agiz_oynama": false,
+  "arka_plan": "sabit flat sokak + yaya gecidi, fotorealistik degil"
+}

@@ -1,0 +1,11 @@
+KULLANILAN / SAKLA
+- assets/KADRO/OLABILIR/ZOMBIE_KIZ/     (kalip + kiyafetler)
+- assets/KADRO/OLABILIR/STIL_KILIT_3/  (3 stil kilidi)
+- assets/KADRO/OLUR/                   (AKI/REN begenilenler)
+- assets/aki_karakter_ref.png, ren_karakter_ref.png
+- karakterler/TENSOR_ZOMBIE_KIZ.txt, MINI_ZOMBIE_SHORT.txt, ARASTIRMA_2SITE_HIBRIT.md
+- video_stil_ref/kanallar/             (kanal stil)
+
+PANEL: Ana_Paneli_Ac.bat
+MOTOR: Tensor.Art (Flanime) + yedek NovelAI
+MOD: defter — 1 kredi = 1 sayfa

@@ -1,0 +1,16 @@
+﻿ZOMBIE KIZ — ANA KILIT
+
+KIMLIK/kimlik_aktif.png     = SOLO en iyi aday (hoodie, duz zemin)
+begendi_SOLO_eniyi_aday.png = ayni
+begendi_ANA_3lu_oturan.png  = 3lu sahne (stil/mood)
+begendi_flatiron_sokak_01.png = sokak denemesi
+
+KIMLIK/kimlik_kalip.png     = eski tisort+sort kalip
+KIMLIK/stil_ref.png         = stil dili
+
+Motor: FlatIron Anime | IP 0.2-0.3
+Hikaye: karakterler/DEFTER_KALP_OPUCUK.txt
+Yapistir: karakterler/YAPISTIR_KALP_10SAYFA.txt
+AE FX: karakterler/AE_KALP_OPUCUK_FX.txt
+
+Panel: Kalpli Opucuk 10syf butonu

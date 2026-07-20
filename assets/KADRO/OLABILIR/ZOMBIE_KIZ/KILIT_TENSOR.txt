@@ -1,0 +1,12 @@
+﻿ANA KILIT (2026-07-20)
+1) begendi_SOLO_eniyi_aday.png / KIMLIK/kimlik_aktif.png
+   = tartismasiz en iyi SOLO aday (duz zemin hoodie)
+2) begendi_ANA_3lu_oturan.png
+   = senin sectigin sahne (ana + 2 kucuk oturan) — stil/mood
+
+MOTOR: FlatIron Anime | IP 0.2-0.3 | 768x1152
+HIKAYE: karakterler/DEFTER_KALP_OPUCUK.txt
+YAPISTIR: karakterler/YAPISTIR_KALP_10SAYFA.txt
+AE FX: karakterler/AE_KALP_OPUCUK_FX.txt
+
+ARKA PLAN: sabit flat sokak, gercekci degil

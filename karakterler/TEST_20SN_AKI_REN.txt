@@ -1,0 +1,36 @@
+=== 20 SN TEST — AKI + REN (Dangoheart / Ganzouomo tarzı) ===
+Süre: 20 sn | Panel: 9 | Izgara: 3x3 | Stil: elle çizilmiş flat indie Short
+
+--- HİKAYE (Türkçe — panele yapıştır) ---
+
+Okul bahçesinin kenarında yağmur yeni dinmiş. AKI (koyu bordo saçlı, gri yelek + kırmızı etek) tek başına duruyor, gökyüzüne bakıyor. REN (kestane saç, lacivert trenç, gri atkı) uzaktan gelir, elleri cebinde, yüzü bıkkın. İkisi birbirini fark eder — önce sert / uzak bakarlar (düşman gibi). AKI omzunu çevirip kaçmak ister ama ayakkabı bağı çözülür, eğilir. REN istemeden yanında durur, bağa bakıp hiçbir şey demeden bekler. AKI başını kaldırır, şaşırır. İkisi de kızarır / utangaç basit yüz. Kısa bir an yan yana dururlar, konuşma yok. Sonra REN ters yöne yürür; AKI arkasından bakar. Son kare: ikisi de aynı anda geri dönüp bakar — ama birbirlerinden uzakta — kısa “acaba?” hissi. Konuşma balonu YOK. Indie YouTube Short ritmi, duygusal ve net pozlar.
+
+--- İNGİLİZCE POZ LİSTESİ (PixAI / Metni Topla çıktısı gibi) ---
+
+1) AKI alone in schoolyard after rain, looking up at cloudy sky, full body, flat beige-green ground, simple trees
+2) REN walks in from the side, hands in trench coat pockets, bored half-lidded eyes, full body
+3) Both notice each other across the yard, stiff distant stare, enemies vibe, full bodies readable
+4) AKI turns away to leave, one foot forward, looking down, ahoge tilting
+5) AKI kneels to tie loose shoelace, REN stands nearby looking away awkwardly, both full body
+6) AKI looks up surprised (simple oval eyes wider), REN glances down at her then away, blush lines optional simple
+7) Both stand side by side silently for a beat, facing forward, slight awkward gap between them
+8) REN walks away opposite direction, scarf ends moving, AKI watches his back
+9) Final: split feeling — AKI looking back over shoulder AND REN looking back over shoulder (same panel or clear double look), soft almost-connection, no kiss yet, no speech bubbles
+
+--- STİL BLOĞU (prompta kalsın) ---
+
+DangoheartAnimation + Ganzouomo amateur hand-drawn YouTube short style: thick uneven shaky black marker outlines, FLAT colors only, no gradients, no bloom, simple oval eyes with dot pupils, dash mouths, wonky beginner proportions, hair as flat clumps, low detail backgrounds, looks handmade not AI polished. Match assets aki_karakter_ref.png and ren_karakter_ref.png.
+
+--- NEGATİF ---
+
+ai generated look, overly smooth, perfect symmetry, hyper detailed hair, bloom, glow, soft gradients, photoreal, 3d, speech bubbles, watermark, polished digital painting
+
+--- PANELDE AKIŞ ---
+
+1) AKI + REN kadro kilitle
+2) Hikaye kutusuna YUKARIDAKİ Türkçe hikayeyi yapıştır (yer tutucuyu sil)
+3) Süre = 20 | panel = 9
+4) Metni Topla → Metni Al → PixAI
+5) İndir → 6) Ekle → 7) Krita Video
+
+Bu paket şunları test eder: çift karakter, stil metni, 3x3 ızgara+numara, kesme, hizalama, 20sn flipbook video.

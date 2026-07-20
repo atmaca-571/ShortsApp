@@ -1,0 +1,43 @@
+=== KALP ÖPÜCÜK — POZ ONLY (Krita'da kadraj) ===
+FlatIron | IP 0.25 | kimlik_aktif.png | 768x1152 | Euler 20 | CFG 5
+Plan: Tensor = sadece karakter pozu | Krita = sağ→zebra→sol yerleştir
+
+OLUMSUZ (hepsinde aynı):
+glossy eyes, shiny skin, 3d, photorealistic, multiple panels, comic grid, speech bubble, character sheet, turnaround, extra arms, four arms, second character, chibi, watercolor, bloom, glow, plastic skin, watermark, collage, deep tunnel alley
+
+--- DNA (her sayfanın başına) ---
+1girl, solo, full body, flat matte colors, thin black outlines, mint pale green-gray skin zombie doll girl, messy dark bob ahoge, flat tired purple eyes, oversized dark purple-grey hoodie, dark shorts, barefoot, exact face as reference, simple flat night street background, zebra crosswalk, one frame only,
+
+========== SAYFA 1 ==========
+(DNA) walking left in profile, side view walk pose, one foot forward, arms natural two arms only, looking ahead tired expression
+
+========== SAYFA 2 ==========
+(DNA) walking left, opposite foot forward walk cycle, three-quarter side view, soft tired eyes looking forward
+
+========== SAYFA 3 ==========
+(DNA) stepping onto zebra crosswalk, one foot on white stripe, three-quarter facing soft toward camera
+
+========== SAYFA 4 ==========
+(DNA) standing on zebra crosswalk facing camera, feet planted, idle pause, arms at sides, tired calm face
+
+========== SAYFA 5 ==========
+(DNA) standing on zebra facing camera, right hand raised near mouth preparing to blow a kiss
+
+========== SAYFA 6 ★ ==========
+(DNA) standing on zebra blowing kiss to camera, hand near lips, one simple flat pink 2D heart near hand, tiny kiss pout
+
+========== SAYFA 7 ==========
+(DNA) walking left from crosswalk, three-quarter back view starting, larger flat pink 2D heart floating near, continuing walk
+
+========== SAYFA 8 ==========
+(DNA) walking left, back three-quarter view, no heart, leaving pose, looking away
+
+========== SAYFA 9 ==========
+(DNA) walking away left, side-back view, smaller full body in frame, lonely quiet mood
+
+========== SAYFA 10 ==========
+(DNA) far small figure walking away, side-back or partial silhouette, quiet lonely end, no text, no heart
+
+--- KRITA HATIRLATMA ---
+Sabit 1 BG (yol+zebra). Kızı yerleştir:
+1-2 sağda küçük | 3-6 zebra ortada/yakın | 7-10 sola kaydır / küçült / fade

@@ -1,0 +1,535 @@
+================================================================================
+LAYERENGINE — BENİM OKUMA NOTUM (TAM DETAY)
+================================================================================
+Bu dosyayı sen not için yazdın. Teknik tablo dili yok; her şey “ne yapıyorum,
+nereden alıyorum, nereye koyuyorum” diye anlatılıyor.
+
+Proje klasörü:
+  C:\Users\rias\Desktop\LayerEngine_paket
+
+Bu uygulamanın amacı:
+  YouTube Shorts (dikey 9:16) video üretmek.
+  AI site (Tensor / NovelAI) çiziyor.
+  Bizim program çizmiyor; gelen kareleri sıraya koyup video yapıyor,
+  sonra After Effects ile süsliyor.
+
+Yani zincir şöyle:
+  1) Karakteri kilitle
+  2) Site’de 10 ayrı sayfa çizdir (her kredi = 1 tam resim)
+  3) Her resmi programa ekle (poz_1, poz_2 … poz_10)
+  4) Krita / ffmpeg ile kaba video çıkar
+  5) AE’de kalp, fade, müzik ekle
+  6) Short hazır
+
+Tek foto atmak bu uygulamanın asıl işi değil. Asıl iş = video.
+
+
+================================================================================
+1) PROGRAM NASIL AÇILIR
+================================================================================
+
+Ana iş paneli (bunu kullanıyorsun):
+  Ana_Paneli_Ac.bat
+  → arkada krita_studio_paneli.py açılır
+  → pencere adı gibi bir şey: Canavar Asistan / Ana Panel (Defter)
+
+İki paneli birden açmak istersen:
+  Tum_Panelleri_Ac.bat
+  → hem Krita paneli hem AE paneli
+
+Sadece After Effects paneli:
+  AE_Studio_Ac.bat
+  veya ana paneldeki “8) AE Panel” butonu
+
+
+================================================================================
+2) FİKİR / MANTIK — “DEFTER FLİPBOOK”
+================================================================================
+
+Eski yöntem (artık kullanmıyoruz bu short için):
+  Bir sitede 4’lü / 9’lu comic grid çizdir → program keser → video.
+  Bu yol sheet, chibi, bozuk stil çıkarıyordu.
+
+Yeni yöntem (şu an kilitli):
+  Her kredi = bir defter sayfası = bir tam görsel.
+  10 sayfa = 10 ayrı PNG.
+  Bunları peş peşe koyunca flipbook gibi kısa film oluyor.
+  Kodda: FLIPBOOK_MODU = True
+
+Önemli kural:
+  Tensor’a “sayfayı 4’e böl / character sheet / turnaround” YAZMA.
+  Yazarsan model tam onu çizer. Senin yaşadığın sheet felaketi genelde bu.
+
+
+================================================================================
+3) KARAKTER — ZOMBİ KIZ (KİMLİK)
+================================================================================
+
+Karakter klasörü:
+  assets\KADRO\OLABILIR\ZOMBIE_KIZ\
+
+Kimlik klasörü (yüz / vücut kilit resmi):
+  assets\KADRO\OLABILIR\ZOMBIE_KIZ\KIMLIK\
+
+İki önemli dosya var — karıştırma:
+
+A) kimlik_kalip.png   ← SENİN KULLANDIĞIN
+   - Beyaz / kırık beyaz oversized tişört
+   - Koyu kısa şort
+   - Uzun siyah saç + ahoge
+   - Mint yeşilimsi zombi cilt
+   - Mor yorgun göz, göz altı halka
+   - Dirsek / dizde doll eklem çizgisi
+   - Düz açık zemin (referans için ideal)
+
+B) kimlik_aktif.png   ← PANELİN ÖNERDİĞİ (hoodie solo beğeni)
+   - Oversized mor-gri hoodie
+   - Aynı zombi yüz hattı
+   - Panel “Zombie Kiz Kilitle” önce bunu arar
+   - Yoksa kalıba düşer
+
+Sen Tensor’da kimlik_kalip kullanıyorsan:
+  Prompt’ta da BEYAZ TİŞÖRT yaz.
+  Hoodie yazıp kalıp koyarsan model kafası karışır.
+
+Stil kilidi (flat çizgi hissi):
+  assets\KADRO\OLABILIR\STIL_KILIT_3\
+  01_zombie_okul_flat.png
+  02_koyu_okul_flat.png
+  03_bordo_beyazgoz_okul.png
+
+Kullanma klasörü (sakın):
+  assets\KADRO\OLABILIR\KULLANMA\
+
+Eski AKI + REN kadrosu (şimdilik yan yol):
+  assets\aki_karakter_ref.png
+  assets\ren_karakter_ref.png
+  assets\KADRO\OLUR\
+
+
+================================================================================
+4) ŞU ANKİ HİKÂYE — KALPLİ ÖPÜCÜK (~14 SANİYE)
+================================================================================
+
+Dosyalar (hepsi karakterler klasöründe):
+
+  DEFTER_KALP_OPUCUK.txt
+    → Hikâye + kamera + 10 sayfalık aksiyon listesi (anlatım)
+
+  YAPISTIR_KALP_10SAYFA.txt
+    → Siteye kopyala-yapıştır prompt paketleri
+
+  AE_KALP_OPUCUK_FX.txt
+    → After Effects’te her kareye ne efekt
+
+  TENSOR_ZOMBIE_KIZ.txt
+    → Tensor ayar özeti
+
+  kanal_kadro.json
+    → Programın “bu short kilitli” kayıt dosyası
+      süre 14 sn, ağız oynama kapalı, FlatIron, IP 0.25
+
+  SIMDI_NE_YAP.txt
+    → Kısa “şimdi şunu bas” listesi
+
+  SON_KARAR_VIDEO.md
+    → Video yolu kararı
+
+  UYGULAMA_TAM_OZET.txt  (eski kısa özet)
+  BU DOSYA            → Senin okuyacağın asıl not
+
+Hikâye (Türkçe):
+  Gece. Basit düz yol. Kameraya YAKIN yaya geçidi (zebra).
+  Kız SAĞDAN gelir.
+  Geçide basar.
+  Ortada bize kalpli öpücük atar (pembe düz 2D kalp).
+  SOLA yürüyüp gider / kaybolur.
+  Konuşma yok. Müzik + hafif ses efekti olabilir.
+  Arka plan zombi diye simsiyah olmak ZORUNDA DEĞİL —
+  soft gece yolu + zebra yeter.
+
+Kamera her karede AYNI kalsın (yoksa video zıplar):
+  - Zebra ön planda, bize yakın
+  - Arkada basit yol (derin tünel / fotorealistik bina yok)
+  - Karakter sağdan girer, soldan çıkar
+
+10 sayfa ne oluyor:
+
+  Sayfa 1  — sağda / uzakta, sola doğru yürüyüş başı
+  Sayfa 2  — biraz daha yakın, yürüyüş devam
+  Sayfa 3  — zebra’ya ilk adım (bir ayak çizgide)
+  Sayfa 4  — zebra ortasında duruş, kameraya bakış, kısa durak
+  Sayfa 5  — el ağza, öpücük hazırlığı
+  Sayfa 6  — öpücük + pembe 2D kalp (★ ana kare)
+  Sayfa 7  — sola yürümeye başlar, kalp kameraya doğru büyür/kalır
+  Sayfa 8  — sola çıkış, üç çeyrek arka
+  Sayfa 9  — uzaklaşıyor, küçük
+  Sayfa 10 — sol kenardan çıkış veya soluk silüet / fade
+
+Not:
+  Tensor çoğu zaman “sağda küçük figür” emrini dinlemiyor,
+  karakteri ortaya koyuyor. Bu normal.
+  Çözüm planı: siteden İYİ POZ al → Krita’da sabit arka plana
+  sağ / orta / sol diye yerleştir. Stil bozulmasın yeter.
+
+
+================================================================================
+5) TENSOR’DA ÇİZİM — EN İNCE AYAR
+================================================================================
+
+Site: https://tensor.art
+Model: FlatIron Anime – RIPROAD Edition
+  (Flanime kilitli / ücretliyse FlatIron kullan; SeaArt’ta da aynı model var)
+
+Boyut: Portrait 768 x 1152
+  (512x768 kullanma — kalite ve kadraj bozuluyor)
+
+Örnekleme: Euler
+Adım (Steps): 20
+CFG: 5
+Seed: boş bırakabilirsin (rastgele) veya beğendiğin kareyi sabitle
+
+IP-Adapter (ControlNet):
+  - SADECE 1 ADET olacak
+  - Resim: kimlik_kalip.png  (senin tercihin)
+  - Ağırlık: 0.25 ile 0.30 arası
+  - 0.5 yüzü kilitler ama pozu bozabilir
+  - 1.0 = çamur / blur / aynı duruşa yapışma  ← YAPMA
+  - İkinci IP’ye sheet / başka kız koyma ← YAPMA
+
+Kaç resim:
+  1 (tek kare). Çoklu / sheet / grid kapalı.
+
+İki kutu var — karıştırınca her şey biter:
+
+  GİRİŞ (pozitif / prompt):
+    Karakter + sahne + POZ anlatımı
+    Buraya ASLA “character sheet, turnaround, multiple panels,
+    glossy eyes…” yazma. O liste olumsuz.
+
+  OLUMSUZ (negative):
+    Tam tersi — istemediğin şeyler
+    character sheet, turnaround, multiple panels, comic grid,
+    extra arms, second character, photorealistic, bloom, vb.
+
+Senin yaşadığın en büyük hata:
+  Olumsuz listeyi Giriş kutusuna yapıştırmak.
+  Model “character sheet” görünce sheet çiziyor.
+  Kontrol: Giriş’te “character sheet” kelimesi HİÇ olmamalı.
+
+
+================================================================================
+6) PANEL BUTONLARI — NE İŞE YARIYOR (TEKER TEKER)
+================================================================================
+
+Üst sıra (motor / kadro):
+
+  Zombie Kiz Kilitle
+    Programa “aktif karakter zombie” der.
+    Önce kimlik_aktif.png arar, yoksa kimlik_kalip.png.
+    Stil ref’i de bağlar.
+    Tensor’da sen yine elle kalıp koyabilirsin; bu buton panel içi kilittir.
+
+  Mini Short Yukle
+    Daha kısa test hikâyesi (MINI_ZOMBIE_SHORT.txt).
+    İlk deneme için.
+
+  Kalpli Opucuk 10syf   ← ŞU ANKİ ASIL SHORT
+    10 sayfalık kalpli öpücük paketini yükler.
+    Süreyi ~14 sn yapar.
+    Motoru Tensor’a çeker.
+    AE notlarını ae_edit_notes.txt’e yazar.
+    Chat’e Sayfa 1 prompt’unu koyar.
+    Eski “sol kaldırım / 110 sn” görürsen bu butona TEKRAR bas.
+
+  AKI+REN
+    Eski ikili kadroya döner (şimdilik ana değil).
+
+  Motor: Tensor
+    “Site Ac” tensor.art açar.
+
+  Motor: NovelAI
+    “Site Ac” novelai.net açar.
+    Tensor biterse buraya geçeceğiz (Precise Reference).
+
+Numaralı akış:
+
+  1) Karakter
+    Karakter resmi seç / kilit.
+
+  2) Stil (→metin)
+    Stil ref’ten metin çıkarabilir (yardımcı).
+
+  3) Hikaye
+    Hikâye metnini yaz / yükle.
+
+  Metni Topla
+    Hikâye + karakter + stil bilgisini birleştirir (Gemini plan vs.).
+    Flipbook’ta çoğu zaman hazır paket (Kalpli butonu) yeter.
+
+  4) Sayfa Prompt Al
+    O anki sayfanın prompt’unu panoya kopyalar.
+    Tensor Giriş kutusuna Ctrl+V.
+
+  5) Ref Resimleri Al
+    Kimlik / stil PNG’yi panoya alır (siteye yapıştırmak için).
+
+  Site Ac
+    Seçili motorun sitesini tarayıcıda açar.
+
+  SONRAKI SAYFA
+    Sayfa sayacını 2, 3, … 10 yapar.
+    Sonra yine “4) Sayfa Prompt Al”.
+
+  6) Indirilen Sayfayi Ekle
+    Tensor’dan indirdiğin PNG’yi seçersin.
+    Program onu şuraya kaydeder:
+      input_karakter_kareleri\poz_1.png
+      input_karakter_kareleri\poz_2.png
+      …
+    Flipbook modunda grid KESMEZ — dosya olduğu gibi sayfa olur.
+    Sonraki sayfa için otomatik ilerleyebilir.
+
+  7) Krita Video
+    Klasördeki poz_*.png’leri alır.
+    İstersen Real-ESRGAN ile büyütür → buyutulmus_kareler\
+    kritarunner + krita_kare_animasyon.py ile timeline kurar.
+    ffmpeg ile dikey MP4 yazar → krita_ciktilari\
+    Bu “kaba kurgu” video. Premium kalp efekti henüz yok.
+
+  8) AE Panel
+    ae_studio_paneli.py açılır.
+    Edit Chat / ae_edit_notes.txt ile timing, ses, kalp notları.
+    After Effects’te canavar_asistan.jsx veya elle süsleme.
+
+
+================================================================================
+7) KLASÖRLER — ŞURADAN SUNU ALIYORUZ / ŞURAYA KOYUYORUZ
+================================================================================
+
+input_karakter_kareleri\
+  → Videonun ham kareleri BURADA yaşar.
+  → Senin indirdiğin her sayfa poz_1, poz_2… olur.
+  → Yeni filme başlarken eskiler arşive taşınabilir.
+
+buyutulmus_kareler\
+  → “Kesince Real-ESRGAN ile büyüt” açıksa büyütülmüş kopyalar.
+
+krita_ciktilari\
+  → Çıkan MP4’ler, bazen .kra, Topaz talimatı vs.
+  → İlk izlenebilir dosya genelde burada: kare_animasyon_TARIH.mp4
+
+kare_klasoru_arsivi\
+  → Eski poz klasörlerinin yedeği. Silinmez, tarihle klasörlenir.
+
+poz_kutuphanesi\
+  → İsimli poz arşivi (ileri kullanım).
+
+video_referans_kareleri\
+  → Örnek videodan ffmpeg ile çekilmiş kareler.
+
+karakterler\
+  → Hikâye, prompt, araştırma, kanal kadro JSON. BEYİN klasörü.
+
+assets\KADRO\...
+  → Beğenilen / kilitli görseller.
+
+gemini_indirilenler\
+  → Eski Gemini / PixAI sheet indirmeleri (legacy).
+
+input_characters\  input_backgrounds\  input_videos\  input_audio\
+  → AE paneli için ek malzemeler (karakter temizliği, müzik vs.).
+
+output_shorts\
+  → Eski MoviePy / kaba kurgu JSON yedekleri.
+
+
+================================================================================
+8) VİDEO ÇIKTISI NASIL OLUR (DETAY)
+================================================================================
+
+A) Panel yolu (önerilen)
+  10 poz hazır → 7) Krita Video
+  → Program krita_ayarlar.json yazar (boyut 1080x1920, 24 fps, sn/kare)
+  → Krita runner animasyonu kurar
+  → ffmpeg MP4 üretir
+  → Sen izlersin: henüz “premium” değil, flipbook gibi
+
+B) Panelsiz hızlı yol
+  python flipbook_video.py
+  → Aynı input_karakter_kareleri klasöründen MP4
+  → Krita şart değil
+
+C) After Effects (parlatma)
+  8) AE Panel + AE_KALP_OPUCUK_FX.txt
+  Özet efektler:
+    poz_1–2  : hafif yukarı-aşağı bob (yürüme nefes), biraz scale büyütme
+    poz_3–4  : bob yavaşlar, poz_4 kısa hold
+    poz_5    : hafif nefes
+    poz_6 ★  : PEMBE 2D KALP ayrı katman — scale + opacity + kameraya doğru
+               (lens flare / heavy bloom YASAK)
+    poz_7    : kalp sönerken kız sola
+    poz_8–9  : uzaklaşma (scale küçül, X kaydır)
+    poz_10   : opacity fade / sol kenar çıkış
+  Ses (opsiyonel):
+    yumuşak adım, kısa öpücük/pop, düşük gece ambiyans
+  Ağız senkronu:
+    Bu short’ta KAPALI. Konuşma yok. Oggy tarzı mırıldanma ileride opsiyon.
+
+
+================================================================================
+9) AE PANELİ NE YAPIYOR (KISA AMA NET)
+================================================================================
+
+Dosya: ae_studio_paneli.py
+Açılış: AE_Studio_Ac.bat veya 8) AE Panel
+
+Yaptıkları:
+  - Sahne listesi / script.txt üretmeye yardım
+  - Karakter PNG’lerini input_characters’a alma
+  - After Effects’i başlatıp canavar_asistan.jsx çalıştırma
+  - Edit Chat → ae_edit_notes.txt (senin yazdığın “kalp büyüsün” notları)
+
+canavar_asistan.jsx:
+  - 1080x1920 short comp kurar
+  - İstersen müzik dosyası seçersin, loop eder
+
+
+================================================================================
+10) ESKİ YOLLAR (KARMAŞMASIN DİYE)
+================================================================================
+
+Kullanma / şimdilik yan:
+  - PixAI çok panelli sheet
+  - Anifusion / GPT Image “comic page”
+  - Z-Image-Turbo + CFG 1 + Steps 9 (F5 sonrası yanlışlıkla geliyordu)
+  - panel_film_uret.py / pixai_sheet_video.py (grid kesme)
+  - app.py MoviePy eski render
+  - “Sayfayı 4 eşit parçaya böl” isteği (flipbook video için zararlı)
+
+Araştırma yedekleri:
+  karakterler\ARASTIRMA_SITE_TUTARLILIK.md
+  karakterler\ARASTIRMA_2SITE_HIBRIT.md
+
+Tensor biterse sıradaki:
+  1) NovelAI — Precise Reference (karakter + stil kilidi, web’de en rahat)
+  2) SeaArt — aynı FlatIron + IP / ControlNet
+
+
+================================================================================
+11) PANELDEN VİDEOYA — SENİN EL KİTABI (SIRAYLA YAP)
+================================================================================
+
+[ ] 1. Ana_Paneli_Ac.bat aç
+[ ] 2. Kalpli Opucuk 10syf bas (süre 14 sn görünsün)
+[ ] 3. İstersen Zombie Kiz Kilitle
+[ ] 4. Site Ac → Tensor
+[ ] 5. Tensor ayarı: FlatIron, 768x1152, Euler 20, CFG 5
+[ ] 6. IP TEK: kimlik_kalip.png, ağırlık 0.25
+[ ] 7. Olumsuz kutuya negative liste
+[ ] 8. Giriş’e Sayfa 1 pozitif prompt (tişört + yürüyüş)
+[ ] 9. 1 resim üret — sheet gelirse SİL, ayarı kontrol et
+[ ] 10. Beğendiysen indir
+[ ] 11. Panel 6) Indirilen Sayfayi Ekle → poz_1.png olur
+[ ] 12. SONRAKI SAYFA → 4) Sayfa Prompt Al → Sayfa 2…10 tekrarla
+[ ] 13. 10 kare dolunca 7) Krita Video → MP4 izle
+[ ] 14. 8) AE Panel → kalp/fade/müzik → final short
+
+İlerleme ölçüsü:
+  “Kanal açtım foto attım” değil.
+  Diskte poz_1…poz_10 + bir mp4 = İLERLEME.
+
+
+================================================================================
+12) SIK HATALAR VE ÇÖZÜMÜ
+================================================================================
+
+Hata: Giriş’te olumsuz metin var
+  → Sheet / turnaround çıkar. Giriş’i sil, sadece pozitif yapıştır.
+
+Hata: İki IP-Adapter, biri sheet, biri 1.0
+  → Blur / çamur. Fazlayı sil, tek IP 0.25.
+
+Hata: Prompt hoodie, ref tişört (veya tersi)
+  → Yüz/kıyafet kayar. Ref ile prompt aynı kıyafet olsun.
+
+Hata: F5 sonrası model Z-Image-Turbo, CFG 1, Steps 9
+  → Her şeyi FlatIron / 20 / 5’e geri al.
+
+Hata: “Sağda küçük” yazdım, yine ortada
+  → Site dinlemiyor. Kareyi tut, Krita’da sağa kaydır / küçült.
+
+Hata: 1 aydır ilerleme yok hissi
+  → Çoğu kredi sheet’e ve ayar kaymasına gitti.
+  → Uygulama hazır; eksik olan 10 tutarlı PNG.
+
+
+================================================================================
+13) SAYFA 1 — KALIP UYUMLU HAZIR PROMPT (NOT)
+================================================================================
+
+OLUMSUZ (Olumsuz kutusuna):
+glossy eyes, shiny skin, 3d, photorealistic, multiple panels, comic grid,
+speech bubble, character sheet, turnaround, extra arms, four arms,
+second character, chibi, watercolor, bloom, glow, plastic skin, watermark,
+collage, deep tunnel alley
+
+GİRİŞ (Sayfa 1 — kimlik_kalip ile uyumlu):
+1girl, solo, full body, flat matte colors, thin black outlines,
+mint pale green-gray skin zombie doll girl, long straight black hair ahoge,
+flat tired purple eyes, dark circles under eyes, slightly larger breasts,
+doll joint lines at elbows and knees, oversized off-white t-shirt,
+dark shorts, barefoot, exact face as reference,
+simple flat night street, zebra crosswalk, soft city lights,
+one single image only, walking left in profile, side view walk pose,
+one foot forward, two arms only
+
+Diğer sayfalar:
+  karakterler\YAPISTIR_KALP_10SAYFA.txt
+  (poz-only paket; kadrajı Krita’da düzeltme planı)
+
+
+================================================================================
+14) DİĞER ÖNEMLİ DOSYALAR (İLERİDE LAZIM OLUR)
+================================================================================
+
+krita_studio_config.json
+  → Krita yolu, ffmpeg yolu, Real-ESRGAN, API anahtarı vs. senin PC ayarın
+
+krita_ayarlar.json
+  → Her “Krita Video” öncesi otomatik yazılan geçici ayar
+
+ae_edit_notes.txt
+  → AE’ye akan canlı notlar (Kalpli butonu burayı doldurur)
+
+script.txt
+  → AE / eski MoviePy sahne scripti
+
+shorts_3part.json
+  → 3 bölümlük seri şablonu (ileri kanal planı)
+
+flipbook_video.py
+  → Panelsiz hızlı MP4
+
+krita_kare_animasyon.py
+  → Krita içinde çalışan kare dizici
+
+canavar_asistan.jsx
+  → After Effects ExtendScript
+
+
+================================================================================
+SON CÜMLE (KENARA YAZ)
+================================================================================
+
+Uygulama = montaj bandı.
+Tensor/NovelAI = çizim.
+Senin işin = aynı yüzle 10 temiz TEK kare üretip poz_1…10 yapmak.
+O olmadan video yok; o olunca panel + AE zaten hazır.
+
+Tensor son deneme: tek IP + kimlik_kalip + doğru kutular.
+Olmazsa: NovelAI Precise Reference, yedek SeaArt FlatIron.
+
+================================================================================
+DOSYA SONU
+================================================================================

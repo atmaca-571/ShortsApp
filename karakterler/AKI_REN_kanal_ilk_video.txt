@@ -1,0 +1,14 @@
+KANAL KADROSU — KILITLI
+=======================
+AKI + REN begendigin halleriyle sabit.
+Hikaye: SONRA (henuz yok).
+
+Ref:
+  assets\aki_karakter_ref.png
+  assets\ren_karakter_ref.png
+
+Stil: Dangoheart / Ganzouomo (SeanWay basitlik)
+  video_stil_ref\kanallar\
+
+Panelde: "AKI + REN kadro kilitle (hikaye sonra)"
+Sonra hikaye kutusuna yaz → Metni Topla.
